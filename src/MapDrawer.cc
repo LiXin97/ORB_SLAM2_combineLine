@@ -36,6 +36,7 @@ MapDrawer::MapDrawer(Map* pMap, const string &strSettingPath):mpMap(pMap)
     mKeyFrameLineWidth = fSettings["Viewer.KeyFrameLineWidth"];
     mGraphLineWidth = fSettings["Viewer.GraphLineWidth"];
     mPointSize = fSettings["Viewer.PointSize"];
+    mLineSize = fSettings["Viewer.LineSize"];
     mCameraSize = fSettings["Viewer.CameraSize"];
     mCameraLineWidth = fSettings["Viewer.CameraLineWidth"];
 
@@ -76,6 +77,45 @@ void MapDrawer::DrawMapPoints()
         glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
 
     }
+
+    glEnd();
+}
+
+void MapDrawer::DrawMapLines()
+{
+    const std::vector<MapLine*> &vpMLs = mpMap->GetAllMapLines();
+    const std::vector<MapLine*> &vpRefMLs = mpMap->GetReferenceMapLines();
+
+    set<MapLine*> spRefMLs(vpRefMLs.begin(), vpRefMLs.end());
+
+    if(vpMLs.empty())
+        return;
+
+    glPointSize(mPointSize);
+    glBegin(GL_LINES);
+    glColor3f(0.0,0.0,0.0);
+
+    for(size_t i=0, iend=vpMLs.size(); i<iend;i++)
+    {
+        if(vpMLs[i]->isBad() || spRefMLs.count(vpMLs[i]))
+            continue;
+//        cv::Mat pos = vpMPs[i]->GetWorldPos();
+//        glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
+    }
+    glEnd();
+
+//    glPointSize(mPointSize);
+//    glBegin(GL_POINTS);
+//    glColor3f(1.0,0.0,0.0);
+//
+//    for(set<MapPoint*>::iterator sit=spRefMPs.begin(), send=spRefMPs.end(); sit!=send; sit++)
+//    {
+//        if((*sit)->isBad())
+//            continue;
+//        cv::Mat pos = (*sit)->GetWorldPos();
+//        glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
+//
+//    }
 
     glEnd();
 }

@@ -38,6 +38,9 @@
 #include "MapDrawer.h"
 #include "System.h"
 
+
+#include "xin/Lineextractor.h"
+
 #include <mutex>
 
 namespace ORB_SLAM2
@@ -157,6 +160,9 @@ protected:
     //ORB
     ORBextractor* mpORBextractorLeft, *mpORBextractorRight;
     ORBextractor* mpIniORBextractor;
+
+    //Line Extractor
+    LineExtractor* mpLineExtractor;
 
     //BoW
     ORBVocabulary* mpORBVocabulary;

@@ -55,6 +55,8 @@
 #include "MapPoint.h"
 #include "Frame.h"
 
+#include "opencv2/imgproc/imgproc_c.h"
+
 namespace ORB_SLAM2
 {
 

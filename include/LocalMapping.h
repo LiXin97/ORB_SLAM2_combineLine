@@ -26,6 +26,7 @@
 #include "LoopClosing.h"
 #include "Tracking.h"
 #include "KeyFrameDatabase.h"
+#include "xin/Linematrcher.h"
 
 #include <mutex>
 
@@ -78,7 +79,10 @@ protected:
     void ProcessNewKeyFrame();
     void CreateNewMapPoints();
 
+    void CreateNewMapLines();
+
     void MapPointCulling();
+    void MapLineCullint();
     void SearchInNeighbors();
 
     void KeyFrameCulling();

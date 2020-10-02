@@ -21,6 +21,7 @@
 #ifndef KEYFRAME_H
 #define KEYFRAME_H
 
+#include "xin/MapLine.h"
 #include "MapPoint.h"
 #include "Thirdparty/DBoW2/DBoW2/BowVector.h"
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
@@ -159,6 +160,11 @@ public:
     // Number of KeyPoints
     const int N;
 
+    const int NL;
+    const std::vector<cv::line_descriptor::KeyLine> mvKeyLines;
+    const cv::Mat mDescriptorLine;
+    const std::vector<cv::line_descriptor::KeyLine> mvKeyLinesUn;
+
     // KeyPoints, stereo coordinate and descriptors (all associated by an index)
     const std::vector<cv::KeyPoint> mvKeys;
     const std::vector<cv::KeyPoint> mvKeysUn;
@@ -188,6 +194,7 @@ public:
     const int mnMaxY;
     const cv::Mat mK;
 
+    cv::Mat mImage;
 
     // The following variables need to be accessed trough a mutex to be thread safe.
 protected:

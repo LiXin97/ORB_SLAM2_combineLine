@@ -22,6 +22,7 @@
 #include "Converter.h"
 #include "ORBmatcher.h"
 #include <thread>
+#include <omp.h>
 
 namespace ORB_SLAM2
 {
@@ -171,8 +172,10 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
 }
 
 
-Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
+Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc,
+             LineExtractor* LineExtractor, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
     :mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
+     mpLineExtractor(LineExtractor),
      mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth)
 {
     // Frame ID
@@ -187,22 +190,55 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
     mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();
     mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();
 
-    // ORB extraction
-    ExtractORB(0,imGray);
+    mImage = imGray.clone();
+//    // ORB extraction
+//    ExtractORB(0,imGray);
+
+    // extraction point and line
+    thread Point(&Frame::ExtractORB, this, 0, imGray);
+    thread Line(&Frame::ExtractLine, this, imGray);
+    Point.join();
+    Line.join();
+
+//    cv::Mat show = imGray.clone();
+//    if(show.channels() != 3) cv::cvtColor(show, show, cv::COLOR_GRAY2BGR);
+//
+//    int lowest = 0, highest = 255;
+//    int range = (highest - lowest) + 1;
+//    for(auto &line:mvKeyLines)
+//    {
+//        unsigned int r = lowest + int(rand() % range);
+//        unsigned int g = lowest + int(rand() % range);
+//        unsigned int b = lowest + int(rand() % range);
+//        cv::Point startPoint = cv::Point(int(line.startPointX), int(line.startPointY));
+//        cv::Point endPoint = cv::Point(int(line.endPointX), int(line.endPointY));
+//        cv::line(show, startPoint, endPoint, cv::Scalar(r, g, b),2 ,8);
+//    }
+//    cv::imshow( "Line", show );
+//    cv::waitKey(1);
 
     N = mvKeys.size();
+    NL = mvKeyLines.size();
 
     if(mvKeys.empty())
         return;
 
-    UndistortKeyPoints();
+
+    thread PointUndi(&Frame::UndistortKeyPoints, this);
+    thread LineUndi(&Frame::UndistortKeyLines, this);
+    PointUndi.join();
+    LineUndi.join();
 
     // Set no stereo information
     mvuRight = vector<float>(N,-1);
     mvDepth = vector<float>(N,-1);
+    //TODO add depth and stereo piple
 
     mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));
     mvbOutlier = vector<bool>(N,false);
+
+    mvpMapLines = std::vector<MapLine*>( NL, static_cast<MapLine*>(nullptr) );
+    mvbLineOutlier = std::vector<bool>(NL, false);
 
     // This is done only for the first Frame (or after a change in the calibration)
     if(mbInitialComputations)
@@ -250,6 +286,11 @@ void Frame::ExtractORB(int flag, const cv::Mat &im)
         (*mpORBextractorLeft)(im,cv::Mat(),mvKeys,mDescriptors);
     else
         (*mpORBextractorRight)(im,cv::Mat(),mvKeysRight,mDescriptorsRight);
+}
+
+void Frame::ExtractLine(const cv::Mat &im)
+{
+    (*mpLineExtractor)( im, mvKeyLines, mDescriptorLine );
 }
 
 void Frame::SetPose(cv::Mat Tcw)
@@ -398,6 +439,43 @@ void Frame::ComputeBoW()
     {
         vector<cv::Mat> vCurrentDesc = Converter::toDescriptorVector(mDescriptors);
         mpORBvocabulary->transform(vCurrentDesc,mBowVec,mFeatVec,4);
+    }
+}
+
+void Frame::UndistortKeyLines()
+{
+    if(mDistCoef.at<float>(0)==0.0)
+    {
+        mvKeyLinesUn=mvKeyLines;
+        return;
+    }
+
+    // Fill matrix with points
+    cv::Mat mat(NL*2,2,CV_32F);
+    for(int i=0; i<NL; i++)
+    {
+        mat.at<float>(i*2,0)=mvKeyLines[i].startPointX;
+        mat.at<float>(i*2,1)=mvKeyLines[i].startPointY;
+
+        mat.at<float>(i*2+1,0)=mvKeyLines[i].endPointX;
+        mat.at<float>(i*2+1,1)=mvKeyLines[i].endPointY;
+    }
+
+    // Undistort points
+    mat=mat.reshape(2);
+    cv::undistortPoints(mat,mat,mK,mDistCoef,cv::Mat(),mK);
+    mat=mat.reshape(1);
+
+    // Fill undistorted keypoint vector
+    mvKeyLinesUn.resize(NL);
+    for(int i=0; i<NL; i++)
+    {
+        cv::line_descriptor::KeyLine kl = mvKeyLines[i];
+        kl.startPointX = mat.at<float>(i*2, 0);
+        kl.startPointY = mat.at<float>(i*2, 1);
+        kl.endPointX = mat.at<float>(i*2+1, 0);
+        kl.endPointY = mat.at<float>(i*2+1, 1);
+        mvKeyLinesUn[i]=kl;
     }
 }
 

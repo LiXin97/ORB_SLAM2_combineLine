@@ -22,15 +22,26 @@
 #define FRAME_H
 
 #include<vector>
+#include <thread>
 
 #include "MapPoint.h"
+#include "xin/MapLine.h"
 #include "Thirdparty/DBoW2/DBoW2/BowVector.h"
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
 #include "ORBVocabulary.h"
 #include "KeyFrame.h"
 #include "ORBextractor.h"
 
+#include "xin/Lineextractor.h"
+
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/core/utility.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/features2d/features2d.hpp>
+
 
 namespace ORB_SLAM2
 {
@@ -38,6 +49,7 @@ namespace ORB_SLAM2
 #define FRAME_GRID_COLS 64
 
 class MapPoint;
+class MapLine;
 class KeyFrame;
 
 class Frame
@@ -55,10 +67,13 @@ public:
     Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
     // Constructor for Monocular cameras.
-    Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
+    Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc,
+          LineExtractor* LineExtractor, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
     // Extract ORB on the image. 0 for left image and 1 for right image.
     void ExtractORB(int flag, const cv::Mat &im);
+
+    void ExtractLine( const cv::Mat &im );
 
     // Compute Bag of Words representation.
     void ComputeBoW();
@@ -105,6 +120,8 @@ public:
     // Feature extractor. The right is used only in the stereo case.
     ORBextractor* mpORBextractorLeft, *mpORBextractorRight;
 
+    LineExtractor* mpLineExtractor;
+
     // Frame timestamp.
     double mTimeStamp;
 
@@ -130,12 +147,17 @@ public:
 
     // Number of KeyPoints.
     int N;
+    int NL;
 
     // Vector of keypoints (original for visualization) and undistorted (actually used by the system).
     // In the stereo case, mvKeysUn is redundant as images must be rectified.
     // In the RGB-D case, RGB images can be distorted.
     std::vector<cv::KeyPoint> mvKeys, mvKeysRight;
     std::vector<cv::KeyPoint> mvKeysUn;
+
+    std::vector<cv::line_descriptor::KeyLine> mvKeyLines;
+    cv::Mat mDescriptorLine;
+    std::vector<cv::line_descriptor::KeyLine> mvKeyLinesUn;
 
     // Corresponding stereo coordinate and depth for each keypoint.
     // "Monocular" keypoints have a negative value.
@@ -154,6 +176,9 @@ public:
 
     // Flag to identify outlier associations.
     std::vector<bool> mvbOutlier;
+
+    std::vector<MapLine*> mvpMapLines;
+    std::vector<bool> mvbLineOutlier;
 
     // Keypoints are assigned to cells in a grid to reduce matching complexity when projecting MapPoints.
     static float mfGridElementWidthInv;
@@ -188,12 +213,14 @@ public:
     static bool mbInitialComputations;
 
 
+    cv::Mat mImage;
 private:
 
     // Undistort keypoints given OpenCV distortion parameters.
     // Only for the RGB-D case. Stereo must be already rectified!
     // (called in the constructor).
     void UndistortKeyPoints();
+    void UndistortKeyLines();
 
     // Computes image bounds for the undistorted image (called in the constructor).
     void ComputeImageBounds(const cv::Mat &imLeft);

@@ -42,12 +42,21 @@ ORBextractor.iniThFAST: 20
 ORBextractor.minThFAST: 7
 
 #--------------------------------------------------------------------------------------------
+# Line Parameters
+#--------------------------------------------------------------------------------------------
+
+LineExtractor.nLineFeatures: 150
+LineExtractor.nLineMethod: 1 # 0:LSD 1:FLD 2:TP-LSD
+LineExtractor.nMinLineLength: 60
+
+#--------------------------------------------------------------------------------------------
 # Viewer Parameters
 #---------------------------------------------------------------------------------------------
 Viewer.KeyFrameSize: 0.05
 Viewer.KeyFrameLineWidth: 1
 Viewer.GraphLineWidth: 0.9
-Viewer.PointSize:2
+Viewer.PointSize: 2
+Viewer.LineSize: 2
 Viewer.CameraSize: 0.08
 Viewer.CameraLineWidth: 3
 Viewer.ViewpointX: 0

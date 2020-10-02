@@ -22,6 +22,7 @@
 #include "LoopClosing.h"
 #include "ORBmatcher.h"
 #include "Optimizer.h"
+#include <unistd.h>
 
 #include<mutex>
 
@@ -65,6 +66,7 @@ void LocalMapping::Run()
 
             // Triangulate new MapPoints
             CreateNewMapPoints();
+            CreateNewMapLines();
 
             if(!CheckNewKeyFrames())
             {
@@ -201,6 +203,129 @@ void LocalMapping::MapPointCulling()
             lit = mlpRecentAddedMapPoints.erase(lit);
         else
             lit++;
+    }
+}
+
+void LocalMapping::MapLineCullint()
+{
+
+}
+
+void LocalMapping::CreateNewMapLines()
+{
+    // Retrieve neighbor keyframes in covisibility graph
+    int nn = 10;
+    if(mbMonocular)
+        nn=20;
+    const vector<KeyFrame*> vpNeighKFs = mpCurrentKeyFrame->GetBestCovisibilityKeyFrames(nn);
+
+    LineMatcher lmatcher( .5, true );
+
+    cv::Mat Rcw1 = mpCurrentKeyFrame->GetRotation();
+    cv::Mat Rwc1 = Rcw1.t();
+    cv::Mat tcw1 = mpCurrentKeyFrame->GetTranslation();
+    cv::Mat Tcw1(3,4,CV_32F);
+    Rcw1.copyTo(Tcw1.colRange(0,3));
+    tcw1.copyTo(Tcw1.col(3));
+    cv::Mat Ow1 = mpCurrentKeyFrame->GetCameraCenter();
+
+    const float &fx1 = mpCurrentKeyFrame->fx;
+    const float &fy1 = mpCurrentKeyFrame->fy;
+    const float &cx1 = mpCurrentKeyFrame->cx;
+    const float &cy1 = mpCurrentKeyFrame->cy;
+    const float &invfx1 = mpCurrentKeyFrame->invfx;
+    const float &invfy1 = mpCurrentKeyFrame->invfy;
+
+
+    const float ratioFactor = 1.5f*mpCurrentKeyFrame->mfScaleFactor;
+
+    int nnew=0;
+
+    for( size_t i = 0; i<vpNeighKFs.size(); ++i )
+    {
+        if( i>0 && CheckNewKeyFrames() ) return;
+
+        KeyFrame* pKF2 = vpNeighKFs[i];
+
+        // Check first that baseline is not too short
+        cv::Mat Ow2 = pKF2->GetCameraCenter();
+
+        cv::Mat Rcw2 = pKF2->GetRotation();
+        cv::Mat Rwc2 = Rcw2.t();
+        cv::Mat tcw2 = pKF2->GetTranslation();
+        cv::Mat Tcw2(3,4,CV_32F);
+        Rcw2.copyTo(Tcw2.colRange(0,3));
+        tcw2.copyTo(Tcw2.col(3));
+
+        const float &fx2 = pKF2->fx;
+        const float &fy2 = pKF2->fy;
+        const float &cx2 = pKF2->cx;
+        const float &cy2 = pKF2->cy;
+        const float &invfx2 = pKF2->invfx;
+        const float &invfy2 = pKF2->invfy;
+
+
+        vector<pair<size_t, size_t>> vMatchedIndices;
+        lmatcher.SearchForTriangulation(mpCurrentKeyFrame, pKF2, vMatchedIndices);
+
+        if(0)
+        {
+            // TODO xinli: why sometimes keyframe do not have image???
+            cv::Mat show0 = mpCurrentKeyFrame->mImage.clone();
+            cv::Mat show1 = pKF2->mImage.clone();
+
+            if( show0.empty() ) continue;
+            if( show1.empty() ) continue;
+
+            if(show0.channels() != 3) cv::cvtColor(show0, show0, cv::COLOR_GRAY2BGR);
+            if(show1.channels() != 3) cv::cvtColor(show1, show1, cv::COLOR_GRAY2BGR);
+
+            int lowest = 0, highest = 255;
+            int range = (highest - lowest) + 1;
+            for(auto &Match:vMatchedIndices)
+            {
+                unsigned int r = lowest + int(rand() % range);
+                unsigned int g = lowest + int(rand() % range);
+                unsigned int b = lowest + int(rand() % range);
+
+                {
+                    auto index0 = Match.first;
+                    auto line0 = mpCurrentKeyFrame->mvKeyLines[index0];
+                    cv::Point startPoint = cv::Point(int(line0.startPointX), int(line0.startPointY));
+                    cv::Point endPoint = cv::Point(int(line0.endPointX), int(line0.endPointY));
+                    cv::line(show0, startPoint, endPoint, cv::Scalar(r, g, b),2 ,8);
+                }
+
+                {
+                    auto index1 = Match.second;
+                    auto line1 = pKF2->mvKeyLines[index1];
+                    cv::Point startPoint = cv::Point(int(line1.startPointX), int(line1.startPointY));
+                    cv::Point endPoint = cv::Point(int(line1.endPointX), int(line1.endPointY));
+                    cv::line(show1, startPoint, endPoint, cv::Scalar(r, g, b),2 ,8);
+                }
+
+            }
+            cv::imshow( "show0", show0 );
+            cv::imshow( "show1", show1 );
+            cv::waitKey( 1 );
+        }
+
+
+
+        // For Line, theta
+        const float theta_tri = 0.0;
+
+        if( !mbMonocular )
+        {
+            // TODO xinli
+        }
+        else
+        {
+
+        }
+
+        cv::Mat vBaseline = Ow2-Ow1;
+        const float baseline = cv::norm(vBaseline);
     }
 }
 

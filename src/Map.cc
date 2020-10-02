@@ -91,6 +91,12 @@ vector<MapPoint*> Map::GetAllMapPoints()
     return vector<MapPoint*>(mspMapPoints.begin(),mspMapPoints.end());
 }
 
+std::vector<MapLine *> Map::GetAllMapLines()
+{
+    unique_lock<mutex> lock(mMutexMap);
+    return std::vector< MapLine* >( mspMapLines.begin(), mspMapLines.end() );
+}
+
 long unsigned int Map::MapPointsInMap()
 {
     unique_lock<mutex> lock(mMutexMap);
@@ -107,6 +113,12 @@ vector<MapPoint*> Map::GetReferenceMapPoints()
 {
     unique_lock<mutex> lock(mMutexMap);
     return mvpReferenceMapPoints;
+}
+
+std::vector<MapLine *> Map::GetReferenceMapLines()
+{
+    unique_lock<mutex> lock(mMutexMap);
+    return mvpReferenceMapLines;
 }
 
 long unsigned int Map::GetMaxKFid()

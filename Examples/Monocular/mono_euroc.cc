@@ -65,12 +65,35 @@ int main(int argc, char **argv)
     cout << "Start processing sequence ..." << endl;
     cout << "Images in the sequence: " << nImages << endl << endl;
 
+
+    cv::Mat map1, map2;
+    {
+        cv::Mat cameraMatrix = cv::Mat::eye(3, 3, CV_64F);
+        cameraMatrix.at<double>(0, 0) = 458.654;
+        cameraMatrix.at<double>(0, 1) = 0;
+        cameraMatrix.at<double>(0, 2) = 367.215;
+        cameraMatrix.at<double>(1, 1) = 457.296;
+        cameraMatrix.at<double>(1, 2) = 248.375;
+
+        cv::Mat distCoeffs = cv::Mat::zeros(5, 1, CV_64F);
+        distCoeffs.at<double>(0, 0) = -0.28340811;
+        distCoeffs.at<double>(1, 0) = 0.07395907;
+        distCoeffs.at<double>(2, 0) = 0.00019359;
+        distCoeffs.at<double>(3, 0) = 0;
+        distCoeffs.at<double>(4, 0) = 0;
+        cv::Size imageSize( 752, 480 );
+//        imageSize = image.size();
+        cv::initUndistortRectifyMap(cameraMatrix, distCoeffs, cv::Mat(),
+                                getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0),
+                                imageSize, CV_16SC2, map1, map2);
+    }
+
     // Main loop
     cv::Mat im;
     for(int ni=0; ni<nImages; ni++)
     {
         // Read image from file
-        im = cv::imread(vstrImageFilenames[ni],CV_LOAD_IMAGE_UNCHANGED);
+        im = cv::imread(vstrImageFilenames[ni],0);
         double tframe = vTimestamps[ni];
 
         if(im.empty())
@@ -78,6 +101,11 @@ int main(int argc, char **argv)
             cerr << endl << "Failed to load image at: "
                  <<  vstrImageFilenames[ni] << endl;
             return 1;
+        }
+
+        cv::Mat imRect;
+        {
+            cv::remap(im, imRect, map1, map2, cv::INTER_LINEAR);
         }
 
 #ifdef COMPILEDWITHC11

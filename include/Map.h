@@ -22,8 +22,10 @@
 #define MAP_H
 
 #include "MapPoint.h"
+#include "xin/MapLine.h"
 #include "KeyFrame.h"
 #include <set>
+#include <vector>
 
 #include <mutex>
 
@@ -32,6 +34,7 @@
 namespace ORB_SLAM2
 {
 
+class MapLine;
 class MapPoint;
 class KeyFrame;
 
@@ -52,6 +55,9 @@ public:
     std::vector<MapPoint*> GetAllMapPoints();
     std::vector<MapPoint*> GetReferenceMapPoints();
 
+    std::vector<MapLine*> GetAllMapLines();
+    std::vector<MapLine*> GetReferenceMapLines();
+
     long unsigned int MapPointsInMap();
     long unsigned  KeyFramesInMap();
 
@@ -59,7 +65,7 @@ public:
 
     void clear();
 
-    vector<KeyFrame*> mvpKeyFrameOrigins;
+    std::vector<KeyFrame*> mvpKeyFrameOrigins;
 
     std::mutex mMutexMapUpdate;
 
@@ -68,9 +74,11 @@ public:
 
 protected:
     std::set<MapPoint*> mspMapPoints;
+    std::set<MapLine*> mspMapLines;
     std::set<KeyFrame*> mspKeyFrames;
 
     std::vector<MapPoint*> mvpReferenceMapPoints;
+    std::vector<MapLine*> mvpReferenceMapLines;
 
     long unsigned int mnMaxKFid;
 
