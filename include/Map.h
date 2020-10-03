@@ -51,6 +51,10 @@ public:
     void InformNewBigChange();
     int GetLastBigChangeIdx();
 
+
+    void AddMapLine(MapLine* pML);
+    void EraseMapLine(MapLine* pML);
+
     std::vector<KeyFrame*> GetAllKeyFrames();
     std::vector<MapPoint*> GetAllMapPoints();
     std::vector<MapPoint*> GetReferenceMapPoints();

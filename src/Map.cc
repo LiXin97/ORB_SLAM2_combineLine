@@ -52,6 +52,21 @@ void Map::EraseMapPoint(MapPoint *pMP)
     // Delete the MapPoint
 }
 
+void Map::AddMapLine(MapLine *pML)
+{
+    unique_lock<mutex> lock(mMutexMap);
+    mspMapLines.insert(pML);
+}
+
+void Map::EraseMapLine(MapLine *pML)
+{
+    unique_lock<mutex> lock(mMutexMap);
+    mspMapLines.erase(pML);
+
+    // TODO: This only erase the pointer.
+    // Delete the MapPoint
+}
+
 void Map::EraseKeyFrame(KeyFrame *pKF)
 {
     unique_lock<mutex> lock(mMutexMap);

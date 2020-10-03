@@ -44,16 +44,19 @@ Frame::Frame(const Frame &frame)
      mvKeysRight(frame.mvKeysRight), mvKeysUn(frame.mvKeysUn),  mvuRight(frame.mvuRight),
      mvDepth(frame.mvDepth), mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),
      mDescriptors(frame.mDescriptors.clone()), mDescriptorsRight(frame.mDescriptorsRight.clone()),
-     mvpMapPoints(frame.mvpMapPoints), mvbOutlier(frame.mvbOutlier), mnId(frame.mnId),
+     mvpMapPoints(frame.mvpMapPoints), mvbOutlier(frame.mvbOutlier),
+     mvpMapLines(frame.mvpMapLines), mvbLineOutlier(frame.mvbLineOutlier),
+     mnId(frame.mnId),
      mpReferenceKF(frame.mpReferenceKF), mnScaleLevels(frame.mnScaleLevels),
      mfScaleFactor(frame.mfScaleFactor), mfLogScaleFactor(frame.mfLogScaleFactor),
      mvScaleFactors(frame.mvScaleFactors), mvInvScaleFactors(frame.mvInvScaleFactors),
-     mvLevelSigma2(frame.mvLevelSigma2), mvInvLevelSigma2(frame.mvInvLevelSigma2)
+     mvLevelSigma2(frame.mvLevelSigma2), mvInvLevelSigma2(frame.mvInvLevelSigma2), mImage(frame.mImage.clone())
 {
     for(int i=0;i<FRAME_GRID_COLS;i++)
         for(int j=0; j<FRAME_GRID_ROWS; j++)
             mGrid[i][j]=frame.mGrid[i][j];
 
+//        std::cerr << "copy constructor frame" << std::endl;
     if(!frame.mTcw.empty())
         SetPose(frame.mTcw);
 }
@@ -61,7 +64,7 @@ Frame::Frame(const Frame &frame)
 
 Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
     :mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight), mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
-     mpReferenceKF(static_cast<KeyFrame*>(NULL))
+     mpReferenceKF(static_cast<KeyFrame*>(NULL)), mImage(imLeft.clone())
 {
     // Frame ID
     mnId=nNextId++;
@@ -90,9 +93,11 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 
     ComputeStereoMatches();
 
+    // TODO stereo line remain
     mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));    
     mvbOutlier = vector<bool>(N,false);
 
+//    mvpMapLines = std::vector< MapLine* >( NL,  )
 
     // This is done only for the first Frame (or after a change in the calibration)
     if(mbInitialComputations)
@@ -119,7 +124,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 
 Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
     :mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
-     mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth)
+     mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth), mImage(imGray.clone())
 {
     // Frame ID
     mnId=nNextId++;
@@ -147,6 +152,8 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
 
     mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));
     mvbOutlier = vector<bool>(N,false);
+
+    //TODO RBG_D remain
 
     // This is done only for the first Frame (or after a change in the calibration)
     if(mbInitialComputations)
@@ -228,6 +235,11 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
     thread LineUndi(&Frame::UndistortKeyLines, this);
     PointUndi.join();
     LineUndi.join();
+
+//    std::cout << "mDescriptors.rows = " <<  mDescriptors.rows << std::endl;
+//    std::cout << "mDescriptors.cols = " <<  mDescriptors.cols << std::endl;
+//    std::cout << "mDescriptorLine.rows = " <<  mDescriptorLine.rows << std::endl;
+//    std::cout << "mDescriptorLine.cols = " <<  mDescriptorLine.cols << std::endl;
 
     // Set no stereo information
     mvuRight = vector<float>(N,-1);

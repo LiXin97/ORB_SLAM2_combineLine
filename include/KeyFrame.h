@@ -91,6 +91,11 @@ public:
     int TrackedMapPoints(const int &minObs);
     MapPoint* GetMapPoint(const size_t &idx);
 
+    //MapLine boservation functions
+    void AddMapLine( MapLine* pML, const size_t &idx );
+    void EraseMapLineMatch(const size_t &idx);
+    void EraseMapLineMatch(MapLine* pML);
+
     // KeyPoint functions
     std::vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r) const;
     cv::Mat UnprojectStereo(int i);
@@ -159,11 +164,13 @@ public:
 
     // Number of KeyPoints
     const int N;
-
+    // Number of KeyLines
     const int NL;
+
+    // KeyLines, and descriptors
     const std::vector<cv::line_descriptor::KeyLine> mvKeyLines;
-    const cv::Mat mDescriptorLine;
     const std::vector<cv::line_descriptor::KeyLine> mvKeyLinesUn;
+    const cv::Mat mDescriptorLine;
 
     // KeyPoints, stereo coordinate and descriptors (all associated by an index)
     const std::vector<cv::KeyPoint> mvKeys;
@@ -208,6 +215,9 @@ protected:
 
     // MapPoints associated to keypoints
     std::vector<MapPoint*> mvpMapPoints;
+
+    // MapLines associated to keylines
+    std::vector<MapLine*> mvpMapLines;
 
     // BoW
     KeyFrameDatabase* mpKeyFrameDB;

@@ -33,6 +33,8 @@
 
 namespace ORB_SLAM2
 {
+    class Frame;
+using namespace std;
 
 class ORBmatcher
 {    
@@ -70,7 +72,7 @@ public:
 
     // Matching to triangulate new MapPoints. Check Epipolar Constraint.
     int SearchForTriangulation(KeyFrame *pKF1, KeyFrame* pKF2, cv::Mat F12,
-                               std::vector<pair<size_t, size_t> > &vMatchedPairs, const bool bOnlyStereo);
+                               std::vector<std::pair<size_t, size_t> > &vMatchedPairs, const bool bOnlyStereo);
 
     // Search matches between MapPoints seen in KF1 and KF2 transforming by a Sim3 [s12*R12|t12]
     // In the stereo and RGB-D case, s12=1

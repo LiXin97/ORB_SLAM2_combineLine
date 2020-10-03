@@ -24,10 +24,15 @@
 #include "Optimizer.h"
 #include <unistd.h>
 
+#include "xin/MapLine.h"
+#include "Converter.h"
+
 #include<mutex>
 
 namespace ORB_SLAM2
 {
+
+#define MinLineTriTheta 1.5
 
 LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
@@ -221,13 +226,16 @@ void LocalMapping::CreateNewMapLines()
 
     LineMatcher lmatcher( .5, true );
 
-    cv::Mat Rcw1 = mpCurrentKeyFrame->GetRotation();
-    cv::Mat Rwc1 = Rcw1.t();
-    cv::Mat tcw1 = mpCurrentKeyFrame->GetTranslation();
-    cv::Mat Tcw1(3,4,CV_32F);
-    Rcw1.copyTo(Tcw1.colRange(0,3));
-    tcw1.copyTo(Tcw1.col(3));
-    cv::Mat Ow1 = mpCurrentKeyFrame->GetCameraCenter();
+//    cv::Mat Rcw1 = mpCurrentKeyFrame->GetRotation();
+//    cv::Mat Rwc1 = Rcw1.t();
+//    cv::Mat tcw1 = mpCurrentKeyFrame->GetTranslation();
+//    cv::Mat Tcw1(3,4,CV_32F);
+//    Rcw1.copyTo(Tcw1.colRange(0,3));
+//    tcw1.copyTo(Tcw1.col(3));
+//    cv::Mat Ow1 = mpCurrentKeyFrame->GetCameraCenter();
+
+    Eigen::Vector3d twc0 = Converter::toVector3d( mpCurrentKeyFrame->GetCameraCenter() );
+    Eigen::Matrix3d Rwc0 = Converter::toMatrix3d( mpCurrentKeyFrame->GetRotation() );
 
     const float &fx1 = mpCurrentKeyFrame->fx;
     const float &fy1 = mpCurrentKeyFrame->fy;
@@ -247,15 +255,18 @@ void LocalMapping::CreateNewMapLines()
 
         KeyFrame* pKF2 = vpNeighKFs[i];
 
-        // Check first that baseline is not too short
-        cv::Mat Ow2 = pKF2->GetCameraCenter();
+//        // Check first that baseline is not too short
+//        cv::Mat Ow2 = pKF2->GetCameraCenter();
+//
+//        cv::Mat Rcw2 = pKF2->GetRotation();
+//        cv::Mat Rwc2 = Rcw2.t();
+//        cv::Mat tcw2 = pKF2->GetTranslation();
+//        cv::Mat Tcw2(3,4,CV_32F);
+//        Rcw2.copyTo(Tcw2.colRange(0,3));
+//        tcw2.copyTo(Tcw2.col(3));
 
-        cv::Mat Rcw2 = pKF2->GetRotation();
-        cv::Mat Rwc2 = Rcw2.t();
-        cv::Mat tcw2 = pKF2->GetTranslation();
-        cv::Mat Tcw2(3,4,CV_32F);
-        Rcw2.copyTo(Tcw2.colRange(0,3));
-        tcw2.copyTo(Tcw2.col(3));
+        Eigen::Vector3d twc1 = Converter::toVector3d( pKF2->GetCameraCenter() );
+        Eigen::Matrix3d Rwc1 = Converter::toMatrix3d( pKF2->GetRotation() );
 
         const float &fx2 = pKF2->fx;
         const float &fy2 = pKF2->fy;
@@ -268,9 +279,7 @@ void LocalMapping::CreateNewMapLines()
         vector<pair<size_t, size_t>> vMatchedIndices;
         lmatcher.SearchForTriangulation(mpCurrentKeyFrame, pKF2, vMatchedIndices);
 
-        if(0)
-        {
-            // TODO xinli: why sometimes keyframe do not have image???
+        /*{
             cv::Mat show0 = mpCurrentKeyFrame->mImage.clone();
             cv::Mat show1 = pKF2->mImage.clone();
 
@@ -308,24 +317,84 @@ void LocalMapping::CreateNewMapLines()
             cv::imshow( "show0", show0 );
             cv::imshow( "show1", show1 );
             cv::waitKey( 1 );
-        }
+        }*/
 
 
-
-        // For Line, theta
-        const float theta_tri = 0.0;
-
-        if( !mbMonocular )
+        for(auto &Match:vMatchedIndices)
         {
-            // TODO xinli
-        }
-        else
-        {
+            Eigen::Vector3d startP0, endP0, startP1, endP1;
+            auto index0 = Match.first;
+            auto index1 = Match.second;
+            {
+                auto line0 = mpCurrentKeyFrame->mvKeyLines[index0];
+                cv::Point2f startPoint = line0.getStartPoint();
+                cv::Point2f endPoint = line0.getEndPoint();
+                startP0 = Eigen::Vector3d( startPoint.x, startPoint.y, 1. );
+                endP0 = Eigen::Vector3d( endPoint.x, endPoint.y, 1. );
+//                startP0 = Converter::toVector3d(startPoint);
+//                endP0 = Converter::toVector3d(endPoint);
+            }
+            {
+                auto line1 = pKF2->mvKeyLines[index1];
+                cv::Point2f startPoint = line1.getStartPoint();
+                cv::Point2f endPoint = line1.getEndPoint();
+                startP1 = Eigen::Vector3d( startPoint.x, startPoint.y, 1. );
+                endP1 = Eigen::Vector3d( endPoint.x, endPoint.y, 1. );
+//                startP1 = Converter::toVector3d(startPoint);
+//                endP1 = Converter::toVector3d(endPoint);
+            }
+            startP0(0) = (startP0(0) - cx1) * invfx1;
+            startP0(1) = (startP0(1) - cy1) * invfy1;
+            endP0(0) = (endP0(0) - cx1) * invfx1;
+            endP0(1) = (endP0(1) - cy1) * invfy1;
 
-        }
+            startP1(0) = (startP1(0) - cx2) * invfx2;
+            startP1(1) = (startP1(1) - cy2) * invfy2;
+            endP1(0) = (endP1(0) - cx2) * invfx2;
+            endP1(1) = (endP1(1) - cy2) * invfy2;
 
-        cv::Mat vBaseline = Ow2-Ow1;
-        const float baseline = cv::norm(vBaseline);
+            // plane pi from ith obs in ith camera frame
+            Eigen::Vector4d p0 = LineGeo::pi_from_ppp(startP0, endP0, Eigen::Vector3d( 0, 0, 0 ));
+
+            Eigen::Vector3d t01 = Rwc0.transpose() * (twc1 - twc0);
+            Eigen::Matrix3d R01 = Rwc0.transpose() * Rwc1;
+
+            // plane pi from jth obs in ith camera frame
+            Eigen::Vector3d startP1_0 = R01 * startP1 + t01;
+            Eigen::Vector3d endP1_0 = R01 * endP1 + t01;
+            Eigen::Vector4d p1 = LineGeo::pi_from_ppp(startP1_0, endP1_0,t01);
+
+
+            double theta_plane;
+            Eigen::Vector3d p1n = p0.head(3);
+            Eigen::Vector3d p2n = p1.head(3);
+            theta_plane = std::acos( p1n.dot(p2n) );
+            theta_plane = theta_plane/M_PI * 180.;
+            if(theta_plane < MinLineTriTheta) continue;
+
+            auto plcker = Plucker( p0, p1 );
+            plcker.plk_transform( Rwc0, twc1 );
+
+            {
+                auto pML = new MapLine(plcker, mpCurrentKeyFrame, mpMap);
+
+                // step6.10：为该MapLine添加属性
+                pML->AddObservation(mpCurrentKeyFrame, index0);
+                pML->AddObservation(pKF2, index1);
+
+                mpCurrentKeyFrame->AddMapLine(pML, index0);
+                pKF2->AddMapLine(pML, index1);
+
+                pML->ComputeDistinctiveDescriptors();
+//                pML->UpdateAverageDir();
+                mpMap->AddMapLine(pML);
+
+                // step6.11：将新产生的线特征放入检测队列，这些MapLines都会经过MapLineCulling函数的检验
+//                mlpRecentAddedMapLines.push_back(pML);
+            }
+
+            nnew++;
+        }
     }
 }
 

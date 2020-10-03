@@ -115,16 +115,17 @@ Eigen::Matrix<double,3,1> Converter::toVector3d(const cv::Mat &cvVector)
     return v;
 }
 
-Eigen::Matrix<double,3,1> Converter::toVector3d(const cv::Point3f &cvPoint)
-{
-    Eigen::Matrix<double,3,1> v;
-    v << cvPoint.x, cvPoint.y, cvPoint.z;
-
-    return v;
-}
+//Eigen::Matrix<double,3,1> Converter::toVector3d(cv::Point_<float> cvPoint)
+//{
+//    Eigen::Matrix<double,3,1> v;
+//    v << cvPoint.x, cvPoint.y, cvPoint.z;
+//
+//    return v;
+//}
 
 Eigen::Matrix<double,3,3> Converter::toMatrix3d(const cv::Mat &cvMat3)
 {
+    assert(cvMat3.cols == 3 && cvMat3.rows == 3);
     Eigen::Matrix<double,3,3> M;
 
     M << cvMat3.at<float>(0,0), cvMat3.at<float>(0,1), cvMat3.at<float>(0,2),

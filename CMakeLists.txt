@@ -74,7 +74,14 @@ src/KeyFrameDatabase.cc
 src/Sim3Solver.cc
 src/Initializer.cc
 src/Viewer.cc
-src/xin/Lineextractor.cc include/xin/Lineextractor.h src/xin/MapLine.cpp include/xin/MapLine.h src/xin/Linematrcher.cpp include/xin/Linematrcher.h)
+src/xin/Lineextractor.cc
+include/xin/Lineextractor.h
+src/xin/MapLine.cpp
+include/xin/MapLine.h
+src/xin/Linematrcher.cpp
+include/xin/Linematrcher.h
+        include/xin/Ulity.hpp
+        include/xin/LineGeometry.hpp)
 
 target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}

@@ -40,7 +40,8 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     mBowVec(F.mBowVec), mFeatVec(F.mFeatVec), mnScaleLevels(F.mnScaleLevels), mfScaleFactor(F.mfScaleFactor),
     mfLogScaleFactor(F.mfLogScaleFactor), mvScaleFactors(F.mvScaleFactors), mvLevelSigma2(F.mvLevelSigma2),
     mvInvLevelSigma2(F.mvInvLevelSigma2), mnMinX(F.mnMinX), mnMinY(F.mnMinY), mnMaxX(F.mnMaxX),
-    mnMaxY(F.mnMaxY), mK(F.mK), mvpMapPoints(F.mvpMapPoints), mpKeyFrameDB(pKFDB),
+    mnMaxY(F.mnMaxY), mK(F.mK), mvpMapPoints(F.mvpMapPoints), mvpMapLines(F.mvpMapLines),
+    mpKeyFrameDB(pKFDB),
     mpORBvocabulary(F.mpORBvocabulary), mbFirstConnection(true), mpParent(nullptr), mbNotErase(false),
     mbToBeErased(false), mbBad(false), mHalfBaseline(F.mb/2), mpMap(pMap), mImage(F.mImage.clone())
 {
@@ -225,6 +226,25 @@ void KeyFrame::EraseMapPointMatch(MapPoint* pMP)
     int idx = pMP->GetIndexInKeyFrame(this);
     if(idx>=0)
         mvpMapPoints[idx]=static_cast<MapPoint*>(NULL);
+}
+
+void KeyFrame::AddMapLine(MapLine *pML, const size_t &idx)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    mvpMapLines[idx] = pML;
+}
+
+void KeyFrame::EraseMapLineMatch(const size_t &idx)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    mvpMapLines[idx]=static_cast<MapLine*>(nullptr);
+}
+
+void KeyFrame::EraseMapLineMatch(MapLine *pML)
+{
+    int idx = pML->GetIndexInKeyFrame(this);
+    if(idx>=0)
+        mvpMapLines[idx]=static_cast<MapLine*>(nullptr);
 }
 
 
