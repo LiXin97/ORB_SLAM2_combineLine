@@ -32,7 +32,7 @@
 namespace ORB_SLAM2
 {
 
-#define MinLineTriTheta 1.5
+#define MinLineTriTheta 3.0
 
 LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
@@ -85,7 +85,11 @@ void LocalMapping::Run()
             {
                 // Local BA
                 if(mpMap->KeyFramesInMap()>2)
-                    Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame,&mbAbortBA, mpMap);
+                {
+                    Optimizer::LocalBundleAdjustmentCeres(mpCurrentKeyFrame,&mbAbortBA, mpMap);
+//                    Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame,&mbAbortBA, mpMap);
+                }
+
 
                 // Check redundant local Keyframes
                 KeyFrameCulling();
@@ -220,8 +224,8 @@ void LocalMapping::CreateNewMapLines()
 {
     // Retrieve neighbor keyframes in covisibility graph
     int nn = 10;
-    if(mbMonocular)
-        nn=20;
+//    if(mbMonocular)
+//        nn=20;
     const vector<KeyFrame*> vpNeighKFs = mpCurrentKeyFrame->GetBestCovisibilityKeyFrames(nn);
 
     LineMatcher lmatcher( .5, true );
@@ -316,8 +320,9 @@ void LocalMapping::CreateNewMapLines()
             }
             cv::imshow( "show0", show0 );
             cv::imshow( "show1", show1 );
-            cv::waitKey( 1 );
-        }*/
+            cv::waitKey(  );
+        }
+        continue;*/
 
 
         for(auto &Match:vMatchedIndices)
@@ -326,7 +331,7 @@ void LocalMapping::CreateNewMapLines()
             auto index0 = Match.first;
             auto index1 = Match.second;
             {
-                auto line0 = mpCurrentKeyFrame->mvKeyLines[index0];
+                auto line0 = mpCurrentKeyFrame->mvKeyLinesUn[index0];
                 cv::Point2f startPoint = line0.getStartPoint();
                 cv::Point2f endPoint = line0.getEndPoint();
                 startP0 = Eigen::Vector3d( startPoint.x, startPoint.y, 1. );
@@ -335,7 +340,7 @@ void LocalMapping::CreateNewMapLines()
 //                endP0 = Converter::toVector3d(endPoint);
             }
             {
-                auto line1 = pKF2->mvKeyLines[index1];
+                auto line1 = pKF2->mvKeyLinesUn[index1];
                 cv::Point2f startPoint = line1.getStartPoint();
                 cv::Point2f endPoint = line1.getEndPoint();
                 startP1 = Eigen::Vector3d( startPoint.x, startPoint.y, 1. );
@@ -362,7 +367,7 @@ void LocalMapping::CreateNewMapLines()
             // plane pi from jth obs in ith camera frame
             Eigen::Vector3d startP1_0 = R01 * startP1 + t01;
             Eigen::Vector3d endP1_0 = R01 * endP1 + t01;
-            Eigen::Vector4d p1 = LineGeo::pi_from_ppp(startP1_0, endP1_0,t01);
+            Eigen::Vector4d p1 = LineGeo::pi_from_ppp(startP1_0, endP1_0, t01);
 
 
             double theta_plane;
@@ -370,10 +375,37 @@ void LocalMapping::CreateNewMapLines()
             Eigen::Vector3d p2n = p1.head(3);
             theta_plane = std::acos( p1n.dot(p2n) );
             theta_plane = theta_plane/M_PI * 180.;
+//            std::cout << "theta_plane = " << theta_plane << std::endl;
+            if( theta_plane > 90 ) theta_plane = 180. - theta_plane;
             if(theta_plane < MinLineTriTheta) continue;
 
             auto plcker = Plucker( p0, p1 );
-            plcker.plk_transform( Rwc0, twc1 );
+
+            auto [starP3d0, endP3d0] = plcker.Get3D( startP0, endP0 );
+
+            plcker.plk_transform( Rwc0, twc0 );
+
+            Eigen::Matrix3d Rc1w = Rwc1.transpose();
+            Eigen::Vector3d tc1w = -Rc1w * twc1;
+            auto plucker_cam1 = plcker.Get_plk_transform( Rc1w, tc1w );
+            auto [starP3d1, endP3d1] = plucker_cam1.Get3D( startP1, endP1 );
+
+            double len0 = (starP3d0 - endP3d0).norm();
+            double len1 = (starP3d1 - endP3d1).norm();
+            if( len0 > 5 || len0 < 1. || starP3d0(2) < 0 || endP3d0(2) < 0 )
+            {
+//                std::cerr << "len0 = " << len0 << std::endl
+//                          << " starP3d0 = " << starP3d0.transpose() << std::endl
+//                          << " endP3d0 = " << endP3d0.transpose() << std::endl;
+                continue;
+            }
+            if( len1 > 5 || len0 < 1. || starP3d1(2) < 0 || endP3d1(2) < 0 )
+            {
+//                std::cerr << "len1 = " << len1 << std::endl
+//                          << " starP3d1 = " << starP3d1.transpose() << std::endl
+//                          << " endP3d1 = " << endP3d1.transpose() << std::endl;
+                continue;
+            }
 
             {
                 auto pML = new MapLine(plcker, mpCurrentKeyFrame, mpMap);
@@ -381,6 +413,7 @@ void LocalMapping::CreateNewMapLines()
                 // step6.10：为该MapLine添加属性
                 pML->AddObservation(mpCurrentKeyFrame, index0);
                 pML->AddObservation(pKF2, index1);
+                pML->Update3D();
 
                 mpCurrentKeyFrame->AddMapLine(pML, index0);
                 pKF2->AddMapLine(pML, index1);
@@ -390,7 +423,7 @@ void LocalMapping::CreateNewMapLines()
                 mpMap->AddMapLine(pML);
 
                 // step6.11：将新产生的线特征放入检测队列，这些MapLines都会经过MapLineCulling函数的检验
-//                mlpRecentAddedMapLines.push_back(pML);
+                mlpRecentAddedMapLines.push_back(pML);
             }
 
             nnew++;

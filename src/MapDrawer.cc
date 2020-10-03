@@ -91,31 +91,34 @@ void MapDrawer::DrawMapLines()
     if(vpMLs.empty())
         return;
 
-    glPointSize(mPointSize);
+    glLineWidth(mLineSize);
     glBegin(GL_LINES);
     glColor3f(0.0,0.0,0.0);
 
-    for(size_t i=0, iend=vpMLs.size(); i<iend;i++)
+    for(auto vpML : vpMLs)
     {
-        if(vpMLs[i]->isBad() || spRefMLs.count(vpMLs[i]))
+        if(vpML->isBad() || spRefMLs.count(vpML))
             continue;
-//        cv::Mat pos = vpMPs[i]->GetWorldPos();
-//        glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
+        auto [StartPoint, EndPoint] = vpML->GetStarEndPoints();
+        glVertex3f(StartPoint(0), StartPoint(1), StartPoint(2));
+        glVertex3f(EndPoint(0), EndPoint(1), EndPoint(2));
     }
     glEnd();
 
-//    glPointSize(mPointSize);
-//    glBegin(GL_POINTS);
-//    glColor3f(1.0,0.0,0.0);
-//
-//    for(set<MapPoint*>::iterator sit=spRefMPs.begin(), send=spRefMPs.end(); sit!=send; sit++)
-//    {
-//        if((*sit)->isBad())
-//            continue;
-//        cv::Mat pos = (*sit)->GetWorldPos();
-//        glVertex3f(pos.at<float>(0),pos.at<float>(1),pos.at<float>(2));
-//
-//    }
+    glLineWidth(mLineSize);
+    glBegin(GL_LINES);
+    glColor3f(1.0,0.0,0.0);
+
+    for(auto vpRefML : vpRefMLs)
+    {
+        if(vpRefML->isBad())
+            continue;
+
+        auto [StartPoint, EndPoint] = vpRefML->GetStarEndPoints();
+        glVertex3f(StartPoint(0), StartPoint(1), StartPoint(2));
+        glVertex3f(EndPoint(0), EndPoint(1), EndPoint(2));
+
+    }
 
     glEnd();
 }

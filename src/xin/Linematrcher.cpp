@@ -24,13 +24,33 @@ namespace ORB_SLAM2
         int nmatches = 0;
         auto bm = cv::line_descriptor::BinaryDescriptorMatcher::createBinaryDescriptorMatcher();
         cv::Mat ldesc1, ldesc2;
-        vector<vector<cv::DMatch>> lmatches;
         ldesc1 = pKF1->mDescriptorLine;
         ldesc2 = pKF2->mDescriptorLine;
 
-        if( ldesc1.empty() || ldesc2.empty() ) return nmatches;
+        cv::Mat ldesc1_no, ldesc2_no;
+        std::vector< size_t > ori_idex1, ori_index2;
+        {
+            auto MapLine1 = pKF1->GetMapLineMatches();
+            auto MapLine2 = pKF2->GetMapLineMatches();
+            for( int index = 0;index < pKF1->NL;++index )
+            {
+                if( MapLine1[index] ) continue;
+                ldesc1_no.push_back( ldesc1.row(index) );
+                ori_idex1.push_back( index );
+            }
+            for( int index = 0;index < pKF2->NL;++index )
+            {
+                if( MapLine2[index] ) continue;
+                ldesc2_no.push_back( ldesc2.row(index) );
+                ori_index2.push_back( index );
+            }
+        }
 
-        bm->knnMatch(ldesc1, ldesc2, lmatches, 2);
+        vector<vector<cv::DMatch>> lmatches;
+
+        if( ldesc1_no.empty() || ldesc2_no.empty() ) return nmatches;
+
+        bm->knnMatch(ldesc1_no, ldesc2_no, lmatches, 2);
 
         /* select best matches */
         std::vector<cv::DMatch> good_matches;
@@ -38,7 +58,9 @@ namespace ORB_SLAM2
         {
             if( lmatche[0].distance < TH_LOW && lmatche[0].distance < lmatche[1].distance * mnnratio  ){
 
-                vMatchedPairs.emplace_back(lmatche[0].queryIdx, lmatche[0].trainIdx );
+                vMatchedPairs.emplace_back(
+                        ori_idex1[ lmatche[0].queryIdx ],
+                        ori_index2[ lmatche[0].trainIdx ]);
                 nmatches++;
             }
 

@@ -73,9 +73,10 @@ public:
         return mlNewKeyFrames.size();
     }
 
+    bool CheckNewKeyFrames();
+
 protected:
 
-    bool CheckNewKeyFrames();
     void ProcessNewKeyFrame();
     void CreateNewMapPoints();
 
@@ -113,6 +114,8 @@ protected:
     KeyFrame* mpCurrentKeyFrame;
 
     std::list<MapPoint*> mlpRecentAddedMapPoints;
+
+    std::list<MapLine*> mlpRecentAddedMapLines;
 
     std::mutex mMutexNewKFs;
 

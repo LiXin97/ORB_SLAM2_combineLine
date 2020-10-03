@@ -90,7 +90,7 @@ int main(int argc, char **argv)
 
     // Main loop
     cv::Mat im;
-    for(int ni=0; ni<nImages; ni++)
+    for(int ni=200; ni<nImages; ni++)
     {
         // Read image from file
         im = cv::imread(vstrImageFilenames[ni],0);
@@ -108,20 +108,12 @@ int main(int argc, char **argv)
             cv::remap(im, imRect, map1, map2, cv::INTER_LINEAR);
         }
 
-#ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-#else
-        std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
-#endif
 
         // Pass the image to the SLAM system
         SLAM.TrackMonocular(im,tframe);
 
-#ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-#else
-        std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
-#endif
 
         double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
 

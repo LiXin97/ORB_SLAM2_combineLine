@@ -95,6 +95,17 @@ public:
     void AddMapLine( MapLine* pML, const size_t &idx );
     void EraseMapLineMatch(const size_t &idx);
     void EraseMapLineMatch(MapLine* pML);
+    std::vector<MapLine*> GetMapLineMatches()
+    {
+        unique_lock<mutex> lock(mMutexFeatures);
+        return mvpMapLines;
+    }
+    MapLine* GetMapLine(const size_t &idx)
+    {
+        unique_lock<mutex> lock(mMutexFeatures);
+        return mvpMapLines[idx];
+    }
+
 
     // KeyPoint functions
     std::vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r) const;

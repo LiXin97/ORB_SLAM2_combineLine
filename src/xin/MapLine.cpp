@@ -173,4 +173,44 @@ namespace ORB_SLAM2
         unique_lock<mutex> lock2(mMutexPos);
         return mbBad;
     }
+
+    void MapLine::Update3D()
+    {
+        Eigen::Vector3d startPoint3dSum(0.,0.,0.);
+        Eigen::Vector3d endPoint3dSum(0.,0.,0.);
+
+        for( auto& obser:mObservations )
+        {
+            auto index = obser.second;
+            auto KF = obser.first;
+
+            Eigen::Vector3d twc = Converter::toVector3d( KF->GetCameraCenter() );
+            Eigen::Matrix3d Rwc = Converter::toMatrix3d( KF->GetRotation() );
+
+            const float &cx = KF->cx;
+            const float &cy = KF->cy;
+            const float &invfx = KF->invfx;
+            const float &invfy = KF->invfy;
+
+            Eigen::Vector3d ob0, ob1;
+            {
+                auto line1 = KF->mvKeyLinesUn[index];
+                cv::Point2f startPoint = line1.getStartPoint();
+                cv::Point2f endPoint = line1.getEndPoint();
+                ob0 = Eigen::Vector3d( startPoint.x, startPoint.y, 1. );
+                ob1 = Eigen::Vector3d( endPoint.x, endPoint.y, 1. );
+                ob0(0) = (ob0(0) - cx) * invfx;
+                ob0(1) = (ob0(1) - cy) * invfy;
+                ob1(0) = (ob1(0) - cx) * invfx;
+                ob1(1) = (ob1(1) - cy) * invfy;
+            }
+
+            auto [starP3d, endP3d] = plucker_.Get3D( Rwc, twc, ob0, ob1 );
+
+            startPoint3dSum += starP3d;
+            endPoint3dSum += endP3d;
+        }
+        mstartPoint3d_ = startPoint3dSum / mObservations.size();
+        mendPoint3d_ = endPoint3dSum / mObservations.size();
+    }
 }
