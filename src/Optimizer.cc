@@ -453,6 +453,166 @@ int Optimizer::PoseOptimization(Frame *pFrame)
     return nInitialCorrespondences-nBad;
 }
 
+int Optimizer::PoseOptimizationCeres(Frame *pFrame)
+{
+    const float chi2Mono[4]={5.991,5.991,5.991,5.991};
+    const int its[4]={10,10,10,10};
+
+    int nBad=0;
+    for( size_t it = 0;it<4;++it )
+    {
+        nBad=0;
+        ceres::Problem problem;
+
+        double para_Pose[7];
+        {
+            cv::Mat Tcw_mat = pFrame->mTcw;
+
+            Eigen::Matrix<double,3,3> Rcw;
+            Rcw << Tcw_mat.at<float>(0,0), Tcw_mat.at<float>(0,1), Tcw_mat.at<float>(0,2),
+                    Tcw_mat.at<float>(1,0), Tcw_mat.at<float>(1,1), Tcw_mat.at<float>(1,2),
+                    Tcw_mat.at<float>(2,0), Tcw_mat.at<float>(2,1), Tcw_mat.at<float>(2,2);
+
+            Eigen::Matrix<double,3,1> tcw(Tcw_mat.at<float>(0,3), Tcw_mat.at<float>(1,3), Tcw_mat.at<float>(2,3));
+            Eigen::Quaterniond Qcw(Rcw);
+            para_Pose[0] = tcw(0);
+            para_Pose[1] = tcw(1);
+            para_Pose[2] = tcw(2);
+            para_Pose[3] = Qcw.x();
+            para_Pose[4] = Qcw.y();
+            para_Pose[5] = Qcw.z();
+            para_Pose[6] = Qcw.w();
+
+            ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+            problem.AddParameterBlock(para_Pose, 7, local_parameterization);
+        }
+
+        double para_PointFeature[pFrame->N][3];
+        int index_point = -1;
+        for( int i=0;i<pFrame->N;++i )
+        {
+            auto pMP = pFrame->mvpMapPoints[i];
+            if( !pMP ) continue;
+            if( pFrame->mvuRight[i]<0 )
+            {
+                if( it == 0 )
+                    pFrame->mvbOutlier[i] = false;
+                else if( pFrame->mvbOutlier[i] )
+                    continue;
+
+                index_point++;
+                Eigen::Vector3d point3d = Converter::toVector3d( pMP->GetWorldPos() );
+                para_PointFeature[index_point][0] = point3d[0];
+                para_PointFeature[index_point][1] = point3d[1];
+                para_PointFeature[index_point][2] = point3d[2];
+                problem.AddParameterBlock(para_PointFeature[index_point], 3);
+                problem.SetParameterBlockConstant( para_PointFeature[index_point] );
+            }
+            else
+            {
+                assert( 0 );
+            }
+        }
+
+        index_point = -1;
+        int factor_num = 0;
+        for( int i=0;i<pFrame->N;++i )
+        {
+            auto pMP = pFrame->mvpMapPoints[i];
+            if( !pMP ) continue;
+            if( pFrame->mvuRight[i]<0 )
+            {
+                if( pFrame->mvbOutlier[i] )
+                    continue;
+                index_point++;
+                auto kpUn = pFrame->mvKeysUn[ i ];
+
+                const float &cx = pFrame->cx;
+                const float &cy = pFrame->cy;
+                const float &invfx = pFrame->invfx;
+                const float &invfy = pFrame->invfy;
+
+                Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
+
+
+                auto loss_function = new ceres::CauchyLoss(1.);
+                auto cost_function = new MonoProjection( obs_point );
+                problem.AddResidualBlock(cost_function, loss_function, para_Pose, para_PointFeature[index_point]);
+                factor_num++;
+            }
+            else
+            {
+                assert( 0 );
+            }
+        }
+
+        if(factor_num<10)
+            break;
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::SPARSE_SCHUR;
+        options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;  // LEVENBERG_MARQUARDT  DOGLEG
+        //    options.linear_solver_type = ceres::SPARSE_SCHUR; // SPARSE_NORMAL_CHOLESKY  or DENSE_SCHUR
+        options.max_num_iterations = its[it];
+        options.minimizer_progress_to_stdout = false;
+
+        //        TicToc solver_time;
+        ceres::Solver::Summary summary;
+        ceres::Solve (options, &problem, & summary);
+
+        index_point = -1;
+        for( int i=0;i<pFrame->N;++i )
+        {
+            auto pMP = pFrame->mvpMapPoints[i];
+            if( !pMP ) continue;
+            if( pFrame->mvuRight[i]<0 )
+            {
+                if( pFrame->mvbOutlier[i] )
+                    continue;
+                index_point++;
+                auto kpUn = pFrame->mvKeysUn[ i ];
+
+
+                Eigen::Vector3d point3d(para_PointFeature[index_point][0], para_PointFeature[index_point][1], para_PointFeature[index_point][2]);
+
+                const float &cx = pFrame->cx;
+                const float &cy = pFrame->cy;
+                const float &invfx = pFrame->invfx;
+                const float &invfy = pFrame->invfy;
+
+                Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
+
+                Eigen::Matrix<double,3,3> Rcw = Eigen::Quaterniond( para_Pose[6], para_Pose[3], para_Pose[4], para_Pose[5] ).toRotationMatrix();
+                Eigen::Matrix<double,3,1> tcw(para_Pose[0], para_Pose[1], para_Pose[2]);
+
+                Eigen::Vector3d point2d = Rcw * point3d + tcw;
+                Eigen::Vector3d point2d_norm = point2d;
+                point2d_norm /= point2d_norm(2);
+
+                double error = std::pow( ( point2d_norm(0) - obs_point(0) ) * MonoProjection::sqrt_info(0,0),2 )
+                        + std::pow( ( point2d_norm(1) - obs_point(1) ) * MonoProjection::sqrt_info(1,1),2 );
+                if( error > chi2Mono[it] || point2d(2) < 0 )
+                {
+                    pFrame->mvbOutlier[i]=true;
+                    nBad++;
+                }
+            }
+            else
+            {
+                assert( 0 );
+            }
+        }
+
+        Eigen::Matrix4d Tcw = Eigen::Matrix4d::Identity();
+        Tcw( 0, 3 ) = para_Pose[0];
+        Tcw( 1, 3 ) = para_Pose[1];
+        Tcw( 2, 3 ) = para_Pose[2];
+        Tcw.block<3,3>(0,0) = Eigen::Quaterniond( para_Pose[6], para_Pose[3], para_Pose[4], para_Pose[5] ).toRotationMatrix();
+        pFrame->SetPose(Converter::toCvMat(Tcw));
+    }
+
+    return 0;
+}
+
 void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap)
 {    
     // Local KeyFrames: First Breath Search from Current Keyframe
@@ -833,10 +993,6 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
         }
     }
 
-    MonoProjection::sqrt_info = Eigen::Matrix2d::Identity();
-    MonoProjection::sqrt_info(0,0) = 458.654 / .75;
-    MonoProjection::sqrt_info(1,1) = 457.296 / .75;
-
     ceres::Problem problem;
 
     double para_Feature_point[lLocalMapPoints.size()][3];
@@ -999,7 +1155,8 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
                     Eigen::Vector3d point2d_norm = point2d;
                     point2d_norm /= point2d_norm(2);
 
-                    double error = std::pow( ( point2d_norm(0) - obs_point(0) ),2 ) + std::pow( ( point2d_norm(1) - obs_point(1) ),2 );
+                    double error = std::pow( ( point2d_norm(0) - obs_point(0) ) * MonoProjection::sqrt_info(0,0),2 )
+                                   + std::pow( ( point2d_norm(1) - obs_point(1) ) * MonoProjection::sqrt_info(1,1),2 );
                     if( error > 5.991 || point2d(2) < 0 )
                     {
                         vToErase.emplace_back(pKFi,mapPoint);

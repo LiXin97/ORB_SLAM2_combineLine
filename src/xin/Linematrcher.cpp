@@ -68,4 +68,89 @@ namespace ORB_SLAM2
 
         return nmatches;
     }
+
+    int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame, const float th) const
+    {
+        int nmatcher = 0;
+
+        const cv::Mat cvRcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
+        const cv::Mat cvtcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
+        Eigen::Matrix3d Rcw = Converter::toMatrix3d(cvRcw);
+        Eigen::Vector3d tcw = Converter::toVector3d(cvtcw);
+
+        const float &cx = ORB_SLAM2::Frame::cx;
+        const float &cy = ORB_SLAM2::Frame::cy;
+        const float &invfx = ORB_SLAM2::Frame::invfx;
+        const float &invfy = ORB_SLAM2::Frame::invfy;
+        //  a-----b
+        //  |     |
+        //  d-----c
+        Eigen::Vector3d corna( -cx * invfx, -cy * invfy, 1. );
+        Eigen::Vector3d cornb( -cx * invfx, -cy * invfy, 1. );
+        Eigen::Vector3d cornc( -cx * invfx, -cy * invfy, 1. );
+        Eigen::Vector3d cornd( -cx * invfx, -cy * invfy, 1. );
+
+        cv::Mat descr_last;
+        std::vector< size_t > ori_idex;
+        std::vector< MapLine* > vpMapLine;
+        for( int i = 0; i < LastFrame.NL; ++ i )
+        {
+            auto pML = LastFrame.mvpMapLines[i];
+            if( pML )
+            {
+                std::cout << "pML not nullptr" << std::endl;
+            }
+            if( LastFrame.mvbLineOutlier[i] )
+            {
+                std::cout << "LastFrame.mvbLineOutlier[i]  = true" << std::endl;
+            }
+            if(!pML || LastFrame.mvbLineOutlier[i]) continue;
+
+            vpMapLine.push_back(pML);
+
+            auto plucker = pML->GetPlucker();
+            plucker.plk_transform( Rcw, tcw );
+            auto nc = plucker.GetNorm();
+
+            double error_a = nc.dot( corna );
+            double error_b = nc.dot( cornb );
+            double error_c = nc.dot( cornc );
+            double error_d = nc.dot( cornd );
+
+
+            std::cout << "error_a = " << error_a << std::endl;
+            std::cout << "error_b = " << error_b << std::endl;
+            std::cout << "error_c = " << error_c << std::endl;
+            std::cout << "error_d = " << error_d << std::endl;
+            if( error_a > 0 && error_b > 0 && error_c > 0 && error_d > 0 )
+                continue;
+            if( error_a < 0 && error_b < 0 && error_c < 0 && error_d < 0 )
+                continue;
+
+            descr_last.push_back( LastFrame.mDescriptorLine.row(i) );
+            ori_idex.push_back(i);
+        }
+
+//        std::cout << "LastFrame.mDescriptorLine = " << LastFrame.mDescriptorLine.rows << std::endl;
+        auto descr_cur = CurrentFrame.mDescriptorLine;
+//        std::cout << "descr_last = " << descr_last.rows << std::endl;
+        if( descr_last.empty() || descr_cur.empty() ) return nmatcher;
+
+        vector<vector<cv::DMatch>> lmatches;
+        auto bm = cv::line_descriptor::BinaryDescriptorMatcher::createBinaryDescriptorMatcher();
+        bm->knnMatch(descr_cur, descr_last, lmatches, 2);
+
+        /* select best matches */
+        std::vector<cv::DMatch> good_matches;
+        for (auto & lmatche : lmatches)
+        {
+            if( lmatche[0].distance < TH_LOW && lmatche[0].distance < lmatche[1].distance * mnnratio  ){
+
+                CurrentFrame.mvpMapLines[ lmatche[0].queryIdx ] = vpMapLine[ lmatche[0].trainIdx ];
+                nmatcher++;
+            }
+        }
+
+        return nmatcher;
+    }
 }

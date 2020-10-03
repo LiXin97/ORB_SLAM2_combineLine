@@ -26,6 +26,7 @@
 #include <pangolin/pangolin.h>
 #include <iomanip>
 #include <unistd.h>
+#include "xin/point_projection_factor.hpp"
 
 namespace ORB_SLAM2
 {
@@ -112,6 +113,14 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
     mpLoopCloser->SetTracker(mpTracker);
     mpLoopCloser->SetLocalMapper(mpLocalMapper);
+
+
+
+    //xin Ceres
+    MonoProjection::sqrt_info = Eigen::Matrix2d::Identity();
+    MonoProjection::sqrt_info(0,0) = 458.654 / .75;
+    MonoProjection::sqrt_info(1,1) = 457.296 / .75;
+
 }
 
 cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp)

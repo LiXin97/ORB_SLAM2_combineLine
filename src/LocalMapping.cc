@@ -68,6 +68,7 @@ void LocalMapping::Run()
 
             // Check recent MapPoints
             MapPointCulling();
+            MapLineCulling();
 
             // Triangulate new MapPoints
             CreateNewMapPoints();
@@ -169,7 +170,16 @@ void LocalMapping::ProcessNewKeyFrame()
                 }
             }
         }
-    }    
+    }
+
+    auto vpMapLineMatches = mpCurrentKeyFrame->GetMapLineMatches();
+    for( size_t i = 0; i<vpMapLineMatches.size();++i )
+    {
+        auto pML = vpMapLineMatches[i];
+        if( !pML ) continue;
+        if( pML->isBad() ) continue;
+        std::cout << vpMapLineMatches.size() << std::endl;
+    }
 
     // Update links in the Covisibility Graph
     mpCurrentKeyFrame->UpdateConnections();
@@ -215,7 +225,7 @@ void LocalMapping::MapPointCulling()
     }
 }
 
-void LocalMapping::MapLineCullint()
+void LocalMapping::MapLineCulling()
 {
 
 }
@@ -223,7 +233,7 @@ void LocalMapping::MapLineCullint()
 void LocalMapping::CreateNewMapLines()
 {
     // Retrieve neighbor keyframes in covisibility graph
-    int nn = 10;
+    int nn = 5;
 //    if(mbMonocular)
 //        nn=20;
     const vector<KeyFrame*> vpNeighKFs = mpCurrentKeyFrame->GetBestCovisibilityKeyFrames(nn);
@@ -283,7 +293,7 @@ void LocalMapping::CreateNewMapLines()
         vector<pair<size_t, size_t>> vMatchedIndices;
         lmatcher.SearchForTriangulation(mpCurrentKeyFrame, pKF2, vMatchedIndices);
 
-        /*{
+/*        {
             cv::Mat show0 = mpCurrentKeyFrame->mImage.clone();
             cv::Mat show1 = pKF2->mImage.clone();
 
@@ -320,9 +330,8 @@ void LocalMapping::CreateNewMapLines()
             }
             cv::imshow( "show0", show0 );
             cv::imshow( "show1", show1 );
-            cv::waitKey(  );
-        }
-        continue;*/
+            cv::waitKey( 1 );
+        }*/
 
 
         for(auto &Match:vMatchedIndices)
@@ -378,6 +387,8 @@ void LocalMapping::CreateNewMapLines()
 //            std::cout << "theta_plane = " << theta_plane << std::endl;
             if( theta_plane > 90 ) theta_plane = 180. - theta_plane;
             if(theta_plane < MinLineTriTheta) continue;
+
+            std::cout << "tri theta = " << theta_plane << std::endl;
 
             auto plcker = Plucker( p0, p1 );
 

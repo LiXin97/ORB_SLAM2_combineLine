@@ -115,6 +115,7 @@ namespace ORB_SLAM2
 
             return std::make_tuple( pts_1, pts_2 );
         }
+
         std::tuple<Eigen::Vector3d, Eigen::Vector3d>
                 Get3D( const Eigen::Matrix3d& Rwc,
                        const Eigen::Vector3d& twc,
@@ -165,6 +166,9 @@ namespace ORB_SLAM2
 
         void Update3D();
 
+        void IncreaseVisible(int n=1);
+        void IncreaseFound(int n=1);
+
         void SetBadFlag();
         bool isBad();
         std::map<KeyFrame*,size_t> GetObservations();
@@ -174,7 +178,6 @@ namespace ORB_SLAM2
         }
         cv::Mat GetDescriptor();
         void ComputeDistinctiveDescriptors();
-
         int GetIndexInKeyFrame(KeyFrame *pKF);
 
         std::tuple<Eigen::Vector3d, Eigen::Vector3d>
@@ -182,12 +185,19 @@ namespace ORB_SLAM2
             return std::make_tuple( mstartPoint3d_, mendPoint3d_ );
         }
 
+        Plucker GetPlucker() const {return plucker_;}
+
 
         long unsigned int mnId;
         static long unsigned int nNextId;
         long int mnFirstKFid;
         long int mnFirstFrame;
         int nObs;
+
+
+        bool mbTrackInView;
+        long unsigned int mnTrackReferenceForFrame;
+        long unsigned int mnLastFrameSeen;
 
         static std::mutex mGlobalMutex;
     private:

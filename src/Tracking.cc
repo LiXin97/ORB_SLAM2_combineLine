@@ -476,14 +476,23 @@ void Tracking::Track()
                     if(pMP->Observations()<1)
                     {
                         mCurrentFrame.mvbOutlier[i] = false;
-                        mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                        mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(nullptr);
+                    }
+            }
+            for(int i=0; i<mCurrentFrame.NL; i++)
+            {
+                auto pML = mCurrentFrame.mvpMapLines[i];
+                if(pML)
+                    if(pML->Observations()<1)
+                    {
+                        mCurrentFrame.mvbLineOutlier[i] = false;
+                        mCurrentFrame.mvpMapLines[i]=static_cast<MapLine*>(nullptr);
                     }
             }
 
             // Delete temporal MapPoints
-            for(list<MapPoint*>::iterator lit = mlpTemporalPoints.begin(), lend =  mlpTemporalPoints.end(); lit!=lend; lit++)
+            for(auto &pMP : mlpTemporalPoints)
             {
-                MapPoint* pMP = *lit;
                 delete pMP;
             }
             mlpTemporalPoints.clear();
@@ -539,7 +548,6 @@ void Tracking::Track()
     }
 
 }
-
 
 void Tracking::StereoInitialization()
 {
@@ -788,10 +796,9 @@ void Tracking::CheckReplacedInLastFrame()
     }
 }
 
-
 bool Tracking::TrackReferenceKeyFrame()
 {
-//    std::cout << "TrackReferenceKeyFrame" << std::endl;
+    std::cout << "TrackReferenceKeyFrame" << std::endl;
     // Compute Bag of Words vector
     mCurrentFrame.ComputeBoW();
 
@@ -854,17 +861,20 @@ void Tracking::UpdateLastFrame()
         float z = mLastFrame.mvDepth[i];
         if(z>0)
         {
-            vDepthIdx.push_back(make_pair(z,i));
+            vDepthIdx.emplace_back(z,i);
         }
     }
 
     if(vDepthIdx.empty())
         return;
 
+    std::cout <<"vDepthIdx not empty" << std::endl;
+
     sort(vDepthIdx.begin(),vDepthIdx.end());
 
     // We insert all close points (depth<mThDepth)
     // If less than 100 close points, we insert the 100 closest ones.
+    // TODO xinli check here line
     int nPoints = 0;
     for(size_t j=0; j<vDepthIdx.size();j++)
     {
@@ -903,36 +913,50 @@ void Tracking::UpdateLastFrame()
 bool Tracking::TrackWithMotionModel()
 {
 //    std::cout << "TrackWithMotionModel" << std::endl;
-    ORBmatcher matcher(0.9,true);
 
-    // Update last frame pose according to its reference keyframe
-    // Create "visual odometry" points if in Localization Mode
-    UpdateLastFrame();
-
-    mCurrentFrame.SetPose(mVelocity*mLastFrame.mTcw);
-
-    fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));
-
-    // Project points seen in previous frame
-    int th;
-    if(mSensor!=System::STEREO)
-        th=15;
-    else
-        th=7;
-    int nmatches = matcher.SearchByProjection(mCurrentFrame,mLastFrame,th,mSensor==System::MONOCULAR);
-
-    // If few matches, uses a wider window search
-    if(nmatches<20)
+    int nmatches;
     {
+        ORBmatcher matcher(0.9,true);
+
+        // Update last frame pose according to its reference keyframe
+        // Create "visual odometry" points if in Localization Mode
+        UpdateLastFrame();
+
+        mCurrentFrame.SetPose(mVelocity*mLastFrame.mTcw);
+
         fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));
-        nmatches = matcher.SearchByProjection(mCurrentFrame,mLastFrame,2*th,mSensor==System::MONOCULAR);
+
+        // Project points seen in previous frame
+        int th;
+        if(mSensor!=System::STEREO)
+            th=15;
+        else
+            th=7;
+        nmatches = matcher.SearchByProjection(mCurrentFrame,mLastFrame,th,mSensor==System::MONOCULAR);
+
+        // If few matches, uses a wider window search
+        if(nmatches<20)
+        {
+            fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));
+            nmatches = matcher.SearchByProjection(mCurrentFrame,mLastFrame,2*th,mSensor==System::MONOCULAR);
+        }
+
+        if(nmatches<20)
+            return false;
     }
 
-    if(nmatches<20)
-        return false;
+    int nlmatches;
+    {
+        LineMatcher linematch( .85, true );
+        float th = 20;
+        nlmatches = linematch.SearchByProjection( mCurrentFrame, mLastFrame, th );
+
+//        std::cout << "nlmatches = " << nlmatches << std::endl;
+    }
 
     // Optimize frame pose with all matches
-    Optimizer::PoseOptimization(&mCurrentFrame);
+//    Optimizer::PoseOptimization(&mCurrentFrame);
+    Optimizer::PoseOptimizationCeres(&mCurrentFrame);
 
     // Discard outliers
     int nmatchesMap = 0;
@@ -969,13 +993,17 @@ bool Tracking::TrackLocalMap()
     // We have an estimation of the camera pose and some map points tracked in the frame.
     // We retrieve the local map and try to find matches to points in the local map.
 
+//    std::cout << "TrackLocalMap" << std::endl;
     UpdateLocalMap();
 
     SearchLocalPoints();
+    SearchLocalLines();
 
     // Optimize Pose
-    Optimizer::PoseOptimization(&mCurrentFrame);
+    Optimizer::PoseOptimizationCeres(&mCurrentFrame);
+//    Optimizer::PoseOptimization(&mCurrentFrame);
     mnMatchesInliers = 0;
+    mnLineMatchesInliers = 0;
 
     // Update MapPoints Statistics
     for(int i=0; i<mCurrentFrame.N; i++)
@@ -994,8 +1022,27 @@ bool Tracking::TrackLocalMap()
                     mnMatchesInliers++;
             }
             else if(mSensor==System::STEREO)
-                mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint*>(NULL);
+                mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint*>(nullptr);
 
+        }
+    }
+
+    // Update MapLines Statistics
+    for(int i=0; i<mCurrentFrame.NL; i++)
+    {
+        if(mCurrentFrame.mvpMapLines[i])
+        {
+            if(!mCurrentFrame.mvbLineOutlier[i])
+            {
+                mCurrentFrame.mvpMapLines[i]->IncreaseFound();
+                if(!mbOnlyTracking)
+                {
+                    if(mCurrentFrame.mvpMapLines[i]->Observations()>0)
+                        mnLineMatchesInliers++;
+                }
+                else
+                    mnLineMatchesInliers++;
+            }
         }
     }
 
@@ -1229,28 +1276,43 @@ void Tracking::SearchLocalPoints()
     }
 }
 
+void Tracking::SearchLocalLines()
+{
+    for( auto&pML:mCurrentFrame.mvpMapLines )
+    {
+        if( !pML ) continue;
+        if(pML->isBad()) pML= static_cast<MapLine*>(nullptr);
+        else
+        {
+            pML->IncreaseVisible();
+            pML->mnLastFrameSeen = mCurrentFrame.mnId;
+            pML->mbTrackInView = false;
+        }
+    }
+}
+
 void Tracking::UpdateLocalMap()
 {
     // This is for visualization
     mpMap->SetReferenceMapPoints(mvpLocalMapPoints);
+    mpMap->SetReferenceMapLines( mvpLocalMapLines );
 
     // Update
     UpdateLocalKeyFrames();
     UpdateLocalPoints();
+    UpdateLocalLines();
 }
 
 void Tracking::UpdateLocalPoints()
 {
     mvpLocalMapPoints.clear();
 
-    for(vector<KeyFrame*>::const_iterator itKF=mvpLocalKeyFrames.begin(), itEndKF=mvpLocalKeyFrames.end(); itKF!=itEndKF; itKF++)
+    for(auto &pKF : mvpLocalKeyFrames)
     {
-        KeyFrame* pKF = *itKF;
         const vector<MapPoint*> vpMPs = pKF->GetMapPointMatches();
 
-        for(vector<MapPoint*>::const_iterator itMP=vpMPs.begin(), itEndMP=vpMPs.end(); itMP!=itEndMP; itMP++)
+        for(auto &pMP : vpMPs)
         {
-            MapPoint* pMP = *itMP;
             if(!pMP)
                 continue;
             if(pMP->mnTrackReferenceForFrame==mCurrentFrame.mnId)
@@ -1264,6 +1326,28 @@ void Tracking::UpdateLocalPoints()
     }
 }
 
+void Tracking::UpdateLocalLines()
+{
+    mvpLocalMapLines.clear();
+
+    for(auto pKF : mvpLocalKeyFrames)
+    {
+        auto vpMLs = pKF->GetMapLineMatches();
+
+        for( auto& pML:vpMLs )
+        {
+            if( !pML ) continue;
+            if( pML->mnTrackReferenceForFrame == mCurrentFrame.mnId )
+                continue;
+            if( !pML->isBad() )
+            {
+                mvpLocalMapLines.push_back(pML);
+                pML->mnTrackReferenceForFrame=mCurrentFrame.mnId;
+            }
+        }
+    }
+
+}
 
 void Tracking::UpdateLocalKeyFrames()
 {

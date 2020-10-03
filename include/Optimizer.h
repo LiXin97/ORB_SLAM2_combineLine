@@ -45,6 +45,8 @@ public:
     void static LocalBundleAdjustment(KeyFrame* pKF, bool *pbStopFlag, Map *pMap);
     int static PoseOptimization(Frame* pFrame);
 
+    int static PoseOptimizationCeres(Frame* pFrame);
+
 
     void static LocalBundleAdjustmentCeres(KeyFrame* pKF, bool *pbStopFlag, Map *pMap);
 

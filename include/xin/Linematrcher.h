@@ -17,13 +17,16 @@ namespace ORB_SLAM2
     class LineMatcher
     {
     public:
-        LineMatcher( float nnratio = 0.6, bool checkOri = true );
+        explicit LineMatcher( float nnratio = 0.6, bool checkOri = true );
 
         int SearchForTriangulation(
                 KeyFrame *pKF1, KeyFrame* pKF2,
                 std::vector<pair<size_t, size_t> > &vMatchedPairs
                 ) const;
 
+        int SearchByProjection(
+                Frame &CurrentFrame, const Frame &LastFrame, const float th
+                ) const;
 
         static const int TH_LOW;
         static const int TH_HIGH;

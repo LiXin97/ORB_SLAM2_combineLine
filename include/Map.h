@@ -48,6 +48,7 @@ public:
     void EraseMapPoint(MapPoint* pMP);
     void EraseKeyFrame(KeyFrame* pKF);
     void SetReferenceMapPoints(const std::vector<MapPoint*> &vpMPs);
+    void SetReferenceMapLines(const std::vector<MapLine*> &vpMLs);
     void InformNewBigChange();
     int GetLastBigChangeIdx();
 

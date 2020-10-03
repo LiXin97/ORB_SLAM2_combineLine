@@ -16,7 +16,7 @@ namespace ORB_SLAM2
     void LSDExtractor::operator()
             (const cv::Mat& im, std::vector<cv::line_descriptor::KeyLine> &line, cv::Mat& lbd_descr)
     {
-
+        assert(0);
     }
 
     FLDExtractor::FLDExtractor(int nLineFeatures, int nminLinelength)

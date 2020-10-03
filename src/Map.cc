@@ -82,6 +82,12 @@ void Map::SetReferenceMapPoints(const vector<MapPoint *> &vpMPs)
     mvpReferenceMapPoints = vpMPs;
 }
 
+void Map::SetReferenceMapLines(const std::vector<MapLine *> &vpMLs)
+{
+    unique_lock<mutex> lock(mMutexMap);
+    mvpReferenceMapLines = vpMLs;
+}
+
 void Map::InformNewBigChange()
 {
     unique_lock<mutex> lock(mMutexMap);

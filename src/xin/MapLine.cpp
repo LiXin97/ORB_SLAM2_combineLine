@@ -14,8 +14,8 @@ namespace ORB_SLAM2
     MapLine::MapLine(const Plucker &plucker, KeyFrame *pRefKF, Map *pMap)
     :plucker_(plucker),
      mnFirstKFid(pRefKF->mnId), mnFirstFrame(pRefKF->mnFrameId), nObs(0),
-//     mnTrackReferenceForFrame(0),
-//     mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
+     mnTrackReferenceForFrame(0), mnLastFrameSeen(0),
+//     mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
 //     mnCorrectedReference(0), mnBAGlobalForKF(0),
      mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
 //     mpReplaced(static_cast<MapPoint*>(NULL)), mfMinDistance(0), mfMaxDistance(0),
@@ -207,10 +207,33 @@ namespace ORB_SLAM2
 
             auto [starP3d, endP3d] = plucker_.Get3D( Rwc, twc, ob0, ob1 );
 
+//            std::cout << "starP3d = " << starP3d.transpose() << std::endl;
+//            std::cout << "endP3d = " << endP3d.transpose() << std::endl;
+//            std::cout << "dir = " << (starP3d - endP3d).normalized().transpose() << std::endl;
+//            std::cout << "len = " << (starP3d - endP3d).norm() << std::endl;
             startPoint3dSum += starP3d;
             endPoint3dSum += endP3d;
         }
+//        std::cout << "=-=-=-=-=-=-=-" << std::endl;
         mstartPoint3d_ = startPoint3dSum / mObservations.size();
         mendPoint3d_ = endPoint3dSum / mObservations.size();
+    }
+
+    void MapLine::IncreaseVisible(int n)
+    {
+        unique_lock<mutex> lock(mMutexFeatures);
+        mnVisible+=n;
+    }
+
+    void MapLine::IncreaseFound(int n)
+    {
+        unique_lock<mutex> lock(mMutexFeatures);
+        mnFound+=n;
+    }
+
+    int MapLine::Observations()
+    {
+        unique_lock<mutex> lock(mMutexFeatures);
+        return nObs;
     }
 }

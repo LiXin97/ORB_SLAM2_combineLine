@@ -139,10 +139,12 @@ protected:
 
     void UpdateLocalMap();
     void UpdateLocalPoints();
+    void UpdateLocalLines();
     void UpdateLocalKeyFrames();
 
     bool TrackLocalMap();
     void SearchLocalPoints();
+    void SearchLocalLines();
 
     bool NeedNewKeyFrame();
     void CreateNewKeyFrame();
@@ -175,6 +177,8 @@ protected:
     KeyFrame* mpReferenceKF;
     std::vector<KeyFrame*> mvpLocalKeyFrames;
     std::vector<MapPoint*> mvpLocalMapPoints;
+
+    std::vector<MapLine*> mvpLocalMapLines;
     
     // System
     System* mpSystem;
@@ -206,6 +210,8 @@ protected:
 
     //Current matches in frame
     int mnMatchesInliers;
+
+    int mnLineMatchesInliers;
 
     //Last Frame, KeyFrame and Relocalisation Info
     KeyFrame* mpLastKeyFrame;

@@ -83,7 +83,7 @@ protected:
     void CreateNewMapLines();
 
     void MapPointCulling();
-    void MapLineCullint();
+    void MapLineCulling();
     void SearchInNeighbors();
 
     void KeyFrameCulling();
