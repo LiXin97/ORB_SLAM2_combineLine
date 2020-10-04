@@ -185,7 +185,8 @@ namespace ORB_SLAM2
             auto KF = obser.first;
 
             Eigen::Vector3d twc = Converter::toVector3d( KF->GetCameraCenter() );
-            Eigen::Matrix3d Rwc = Converter::toMatrix3d( KF->GetRotation() );
+            Eigen::Matrix3d Rcw = Converter::toMatrix3d( KF->GetRotation() );
+            Eigen::Matrix3d Rwc = Rcw.transpose();
 
             const float &cx = KF->cx;
             const float &cy = KF->cy;
@@ -213,7 +214,11 @@ namespace ORB_SLAM2
 //            std::cout << "len = " << (starP3d - endP3d).norm() << std::endl;
             startPoint3dSum += starP3d;
             endPoint3dSum += endP3d;
+//            mstartPoint3d_ = starP3d;
+//            mendPoint3d_ = endP3d;
         }
+
+//        std::cout << "len = " << (mstartPoint3d_ - mendPoint3d_).norm() << std::endl;
 //        std::cout << "=-=-=-=-=-=-=-" << std::endl;
         mstartPoint3d_ = startPoint3dSum / mObservations.size();
         mendPoint3d_ = endPoint3dSum / mObservations.size();

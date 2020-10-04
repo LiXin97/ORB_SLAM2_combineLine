@@ -249,7 +249,8 @@ void LocalMapping::CreateNewMapLines()
 //    cv::Mat Ow1 = mpCurrentKeyFrame->GetCameraCenter();
 
     Eigen::Vector3d twc0 = Converter::toVector3d( mpCurrentKeyFrame->GetCameraCenter() );
-    Eigen::Matrix3d Rwc0 = Converter::toMatrix3d( mpCurrentKeyFrame->GetRotation() );
+    Eigen::Matrix3d Rc0w = Converter::toMatrix3d( mpCurrentKeyFrame->GetRotation() );
+    Eigen::Matrix3d Rwc0 = Rc0w.transpose();
 
     const float &fx1 = mpCurrentKeyFrame->fx;
     const float &fy1 = mpCurrentKeyFrame->fy;
@@ -279,8 +280,12 @@ void LocalMapping::CreateNewMapLines()
 //        Rcw2.copyTo(Tcw2.colRange(0,3));
 //        tcw2.copyTo(Tcw2.col(3));
 
+//        Eigen::Vector3d twc1 = Converter::toVector3d( pKF2->GetCameraCenter() );
+//        Eigen::Matrix3d Rwc1 = Converter::toMatrix3d( pKF2->GetRotation() );
+
         Eigen::Vector3d twc1 = Converter::toVector3d( pKF2->GetCameraCenter() );
-        Eigen::Matrix3d Rwc1 = Converter::toMatrix3d( pKF2->GetRotation() );
+        Eigen::Matrix3d Rc1w = Converter::toMatrix3d( pKF2->GetRotation() );
+        Eigen::Matrix3d Rwc1 = Rc1w.transpose();
 
         const float &fx2 = pKF2->fx;
         const float &fy2 = pKF2->fy;
@@ -388,7 +393,7 @@ void LocalMapping::CreateNewMapLines()
             if( theta_plane > 90 ) theta_plane = 180. - theta_plane;
             if(theta_plane < MinLineTriTheta) continue;
 
-            std::cout << "tri theta = " << theta_plane << std::endl;
+//            std::cout << "tri theta = " << theta_plane << std::endl;
 
             auto plcker = Plucker( p0, p1 );
 
@@ -396,27 +401,28 @@ void LocalMapping::CreateNewMapLines()
 
             plcker.plk_transform( Rwc0, twc0 );
 
-            Eigen::Matrix3d Rc1w = Rwc1.transpose();
             Eigen::Vector3d tc1w = -Rc1w * twc1;
             auto plucker_cam1 = plcker.Get_plk_transform( Rc1w, tc1w );
             auto [starP3d1, endP3d1] = plucker_cam1.Get3D( startP1, endP1 );
 
             double len0 = (starP3d0 - endP3d0).norm();
             double len1 = (starP3d1 - endP3d1).norm();
-            if( len0 > 5 || len0 < 1. || starP3d0(2) < 0 || endP3d0(2) < 0 )
+            if( len0 > 3. /*|| len0 < 1. */|| starP3d0(2) < 0 || endP3d0(2) < 0 )
             {
 //                std::cerr << "len0 = " << len0 << std::endl
 //                          << " starP3d0 = " << starP3d0.transpose() << std::endl
 //                          << " endP3d0 = " << endP3d0.transpose() << std::endl;
                 continue;
             }
-            if( len1 > 5 || len0 < 1. || starP3d1(2) < 0 || endP3d1(2) < 0 )
+            if( len1 > 3. /*|| len0 < 1.*/ || starP3d1(2) < 0 || endP3d1(2) < 0 )
             {
 //                std::cerr << "len1 = " << len1 << std::endl
 //                          << " starP3d1 = " << starP3d1.transpose() << std::endl
 //                          << " endP3d1 = " << endP3d1.transpose() << std::endl;
                 continue;
             }
+//            std::cout << "len0 = " << len0 << std::endl;
+//            std::cout << "len1 = " << len1 << std::endl;
 
             {
                 auto pML = new MapLine(plcker, mpCurrentKeyFrame, mpMap);
