@@ -82,6 +82,7 @@ namespace ORB_SLAM2
             e1 = e1/e1(3);
             e2 = e2/e2(3);
 
+
 //            double length = (e1-e2).norm();
             // TODO xinli check
 //            if(length > 5 || e1(2) < 0 || e2(2) < 0)
@@ -95,6 +96,9 @@ namespace ORB_SLAM2
             //std::cout << e1 <<"\n\n";
             Eigen::Vector3d pts_1(e1(0),e1(1),e1(2));
             Eigen::Vector3d pts_2(e2(0),e2(1),e2(2));
+
+            return std::make_tuple( pts_1, pts_2 );
+
 
             Eigen::Vector3d dirction_p = ( pts_2 - pts_1 );
             dirction_p.normalize();
@@ -171,6 +175,8 @@ namespace ORB_SLAM2
 
         void SetBadFlag();
         bool isBad();
+        bool IsInKeyFrame(KeyFrame* pKF);
+
         std::map<KeyFrame*,size_t> GetObservations();
         int Observations();
         inline int GetFound(){

@@ -32,7 +32,7 @@
 namespace ORB_SLAM2
 {
 
-#define MinLineTriTheta 3.0
+#define MinLineTriTheta 5.
 
 LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
@@ -178,7 +178,18 @@ void LocalMapping::ProcessNewKeyFrame()
         auto pML = vpMapLineMatches[i];
         if( !pML ) continue;
         if( pML->isBad() ) continue;
-        std::cout << vpMapLineMatches.size() << std::endl;
+        if( !pML->IsInKeyFrame(mpCurrentKeyFrame) )
+        {
+            pML->AddObservation( mpCurrentKeyFrame, i );
+            //TODO xinli
+//            pML->Update3D();
+            pML->ComputeDistinctiveDescriptors();
+        }
+        else
+        {
+            mlpRecentAddedMapLines.push_back(pML);
+        }
+//        std::cout << "vpMapLineMatches.size() = " << vpMapLineMatches.size() << std::endl;
     }
 
     // Update links in the Covisibility Graph
@@ -407,14 +418,14 @@ void LocalMapping::CreateNewMapLines()
 
             double len0 = (starP3d0 - endP3d0).norm();
             double len1 = (starP3d1 - endP3d1).norm();
-            if( len0 > 3. /*|| len0 < 1. */|| starP3d0(2) < 0 || endP3d0(2) < 0 )
+            if( len0 > 2. /*|| len0 < 1. */|| starP3d0(2) < 0 || endP3d0(2) < 0 )
             {
 //                std::cerr << "len0 = " << len0 << std::endl
 //                          << " starP3d0 = " << starP3d0.transpose() << std::endl
 //                          << " endP3d0 = " << endP3d0.transpose() << std::endl;
                 continue;
             }
-            if( len1 > 3. /*|| len0 < 1.*/ || starP3d1(2) < 0 || endP3d1(2) < 0 )
+            if( len1 > 2. /*|| len0 < 1.*/ || starP3d1(2) < 0 || endP3d1(2) < 0 )
             {
 //                std::cerr << "len1 = " << len1 << std::endl
 //                          << " starP3d1 = " << starP3d1.transpose() << std::endl
@@ -427,7 +438,6 @@ void LocalMapping::CreateNewMapLines()
             {
                 auto pML = new MapLine(plcker, mpCurrentKeyFrame, mpMap);
 
-                // step6.10：为该MapLine添加属性
                 pML->AddObservation(mpCurrentKeyFrame, index0);
                 pML->AddObservation(pKF2, index1);
                 pML->Update3D();
@@ -438,8 +448,6 @@ void LocalMapping::CreateNewMapLines()
                 pML->ComputeDistinctiveDescriptors();
 //                pML->UpdateAverageDir();
                 mpMap->AddMapLine(pML);
-
-                // step6.11：将新产生的线特征放入检测队列，这些MapLines都会经过MapLineCulling函数的检验
                 mlpRecentAddedMapLines.push_back(pML);
             }
 
@@ -932,7 +940,9 @@ void LocalMapping::KeyFrameCulling()
                     }
                 }
             }
-        }  
+        }
+
+        //TODO xinli MapLine
 
         if(nRedundantObservations>0.9*nMPs)
             pKF->SetBadFlag();
@@ -971,6 +981,7 @@ void LocalMapping::ResetIfRequested()
     {
         mlNewKeyFrames.clear();
         mlpRecentAddedMapPoints.clear();
+        mlpRecentAddedMapLines.clear();
         mbResetRequested=false;
     }
 }

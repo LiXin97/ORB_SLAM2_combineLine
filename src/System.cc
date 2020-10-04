@@ -94,7 +94,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
     //Initialize the Loop Closing thread and launch
     mpLoopCloser = new LoopClosing(mpMap, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR);
-    mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run, mpLoopCloser);
+//    mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run, mpLoopCloser);
 
     //Initialize the Viewer thread and launch
     if(bUseViewer)
@@ -118,8 +118,8 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
     //xin Ceres
     MonoProjection::sqrt_info = Eigen::Matrix2d::Identity();
-    MonoProjection::sqrt_info(0,0) = 458.654 / .75;
-    MonoProjection::sqrt_info(1,1) = 457.296 / .75;
+    MonoProjection::sqrt_info(0,0) = 458.654;
+    MonoProjection::sqrt_info(1,1) = 457.296;
 
 }
 

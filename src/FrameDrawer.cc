@@ -42,6 +42,10 @@ cv::Mat FrameDrawer::DrawFrame()
     vector<int> vMatches; // Initialization: correspondeces with reference keypoints
     vector<cv::KeyPoint> vCurrentKeys; // KeyPoints in current frame
     vector<bool> vbVO, vbMap; // Tracked MapPoints in current frame
+
+    std::vector< cv::line_descriptor::KeyLine > vCurrentLines;
+    std::vector< bool > vbLineVO, vbLineMap;
+
     int state; // Tracking state
 
     //Copy variables within scoped mutex
@@ -64,6 +68,10 @@ cv::Mat FrameDrawer::DrawFrame()
             vCurrentKeys = mvCurrentKeys;
             vbVO = mvbVO;
             vbMap = mvbMap;
+
+            vCurrentLines = mvCurrentLines;
+            vbLineMap = mvbLineMap;
+            vbLineVO = mvbLineVO;
         }
         else if(mState==Tracking::LOST)
         {
@@ -90,6 +98,8 @@ cv::Mat FrameDrawer::DrawFrame()
     {
         mnTracked=0;
         mnTrackedVO=0;
+        mnlTracked=0;
+        mnlTrackedVO=0;
         const float r = 5;
         const int n = vCurrentKeys.size();
         for(int i=0;i<n;i++)
@@ -114,6 +124,27 @@ cv::Mat FrameDrawer::DrawFrame()
                     cv::rectangle(im,pt1,pt2,cv::Scalar(255,0,0));
                     cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(255,0,0),-1);
                     mnTrackedVO++;
+                }
+            }
+        }
+        const int nl = vCurrentLines.size();
+        for( int i=0;i<nl;i++ )
+        {
+            if( vbLineVO[i] || vbLineMap[i] )
+            {
+                cv::Point2f startP, endP;
+                startP = vCurrentLines[i].getStartPoint();
+                endP = vCurrentLines[i].getEndPoint();
+
+                if( vbLineMap[i] )
+                {
+                    cv::line(im, startP, endP, cv::Scalar(0,255,0),2 ,8);
+                    mnlTracked++;
+                }
+                else
+                {
+                    cv::line(im, startP, endP, cv::Scalar(255,0,0),2 ,8);
+                    mnlTrackedVO++;
                 }
             }
         }
@@ -172,6 +203,10 @@ void FrameDrawer::Update(Tracking *pTracker)
     N = mvCurrentKeys.size();
     mvbVO = vector<bool>(N,false);
     mvbMap = vector<bool>(N,false);
+    mvCurrentLines = pTracker->mCurrentFrame.mvKeyLines;
+    NL = mvCurrentLines.size();
+    mvbLineVO = vector<bool>(NL,false);
+    mvbLineMap = vector<bool>(NL,false);
     mbOnlyTracking = pTracker->mbOnlyTracking;
 
 

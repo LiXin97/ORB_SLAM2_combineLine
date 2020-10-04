@@ -535,7 +535,7 @@ int Optimizer::PoseOptimizationCeres(Frame *pFrame)
                 Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
 
 
-                auto loss_function = new ceres::CauchyLoss(1.);
+                auto loss_function = new ceres::HuberLoss(chi2Mono[it]);
                 auto cost_function = new MonoProjection( obs_point );
                 problem.AddResidualBlock(cost_function, loss_function, para_Pose, para_PointFeature[index_point]);
                 factor_num++;
@@ -553,11 +553,22 @@ int Optimizer::PoseOptimizationCeres(Frame *pFrame)
         options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;  // LEVENBERG_MARQUARDT  DOGLEG
         //    options.linear_solver_type = ceres::SPARSE_SCHUR; // SPARSE_NORMAL_CHOLESKY  or DENSE_SCHUR
         options.max_num_iterations = its[it];
-        options.minimizer_progress_to_stdout = false;
-
         //        TicToc solver_time;
         ceres::Solver::Summary summary;
         ceres::Solve (options, &problem, & summary);
+
+        double InitialRMSE = std::sqrt( summary.initial_cost / summary.num_residuals);
+        double FinalRMSE = std::sqrt( summary.final_cost / summary.num_residuals);
+//        std::cout << std::endl
+//                  << "PoseOptimization statistics (approximated RMSE) (time " << it << " ):\n"
+//                  << " #3D Points: " << index_point+1 << "\n"
+//                  << " #factor_num: " << factor_num << std::endl
+//                  << " #residuals: " << summary.num_residuals << "\n"
+//                  << " Initial RMSE: " << InitialRMSE << "\n"
+//                  << " Final RMSE: " << FinalRMSE << "\n"
+//                  << " Time (s): " << summary.total_time_in_seconds << "\n"
+//                  << std::endl;
+
 
         index_point = -1;
         for( int i=0;i<pFrame->N;++i )
@@ -590,8 +601,11 @@ int Optimizer::PoseOptimizationCeres(Frame *pFrame)
 
                 double error = std::pow( ( point2d_norm(0) - obs_point(0) ) * MonoProjection::sqrt_info(0,0),2 )
                         + std::pow( ( point2d_norm(1) - obs_point(1) ) * MonoProjection::sqrt_info(1,1),2 );
+
+                error = std::sqrt(error);
                 if( error > chi2Mono[it] || point2d(2) < 0 )
                 {
+//                    std::cout << "error = " << error << std::endl;
                     pFrame->mvbOutlier[i]=true;
                     nBad++;
                 }
@@ -608,6 +622,8 @@ int Optimizer::PoseOptimizationCeres(Frame *pFrame)
         Tcw( 2, 3 ) = para_Pose[2];
         Tcw.block<3,3>(0,0) = Eigen::Quaterniond( para_Pose[6], para_Pose[3], para_Pose[4], para_Pose[5] ).toRotationMatrix();
         pFrame->SetPose(Converter::toCvMat(Tcw));
+
+        if( (InitialRMSE - FinalRMSE) < .001 ) break;
     }
 
     return 0;
@@ -1094,7 +1110,7 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
 
 
                     size_t kf_index = kFid_id[ pKFi->mnId ];
-                    auto loss_function = new ceres::CauchyLoss(1.);
+                    auto loss_function = new ceres::CauchyLoss( 5.991 );
                     auto cost_function = new MonoProjection( obs_point );
                     problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_point[index_point]);
                     factor_num++;
@@ -1118,7 +1134,18 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
     ceres::Solver::Summary summary;
     ceres::Solve (options, &problem, & summary);
 
-
+    double InitialRMSE = std::sqrt( summary.initial_cost / summary.num_residuals);
+    double FinalRMSE = std::sqrt( summary.final_cost / summary.num_residuals);
+//    std::cout << std::endl
+//              << "LocalBundleAdjustment statistics (approximated RMSE):\n"
+//              << " #3D Points: " << index_point+1 << "\n"
+//              << " #Cameras: " << kFid_id.size() << "\n"
+//              << " #factor_num: " << factor_num << std::endl
+//              << " #residuals: " << summary.num_residuals << "\n"
+//              << " Initial RMSE: " << InitialRMSE << "\n"
+//              << " Final RMSE: " << FinalRMSE << "\n"
+//              << " Time (s): " << summary.total_time_in_seconds << "\n"
+//              << std::endl;
 
     vector<pair<KeyFrame*,MapPoint*> > vToErase;
     vToErase.reserve(factor_num);
@@ -1157,6 +1184,7 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
 
                     double error = std::pow( ( point2d_norm(0) - obs_point(0) ) * MonoProjection::sqrt_info(0,0),2 )
                                    + std::pow( ( point2d_norm(1) - obs_point(1) ) * MonoProjection::sqrt_info(1,1),2 );
+                    error = std::sqrt(error);
                     if( error > 5.991 || point2d(2) < 0 )
                     {
                         vToErase.emplace_back(pKFi,mapPoint);

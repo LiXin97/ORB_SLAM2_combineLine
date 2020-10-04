@@ -24,6 +24,11 @@ namespace ORB_SLAM2
                 std::vector<pair<size_t, size_t> > &vMatchedPairs
                 ) const;
 
+
+        int SearchByProjection(
+                Frame &F, const std::vector<MapLine*>& vpLocalMapLines
+        );
+
         int SearchByProjection(
                 Frame &CurrentFrame, const Frame &LastFrame, const float th
                 ) const;

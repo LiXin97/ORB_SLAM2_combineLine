@@ -61,13 +61,24 @@ void Viewer::Run()
 
     // 3D Mouse handler requires depth testing to be enabled
     glEnable(GL_DEPTH_TEST);
-
     // Issue specific OpenGl we might need
     glEnable (GL_BLEND);
     glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+
+    pangolin::View& d_video = pangolin::Display("imgVideo")
+            .SetAspect(752/(float)480);
+
+    pangolin::CreateDisplay()
+            .SetBounds(0.0, 0.3, pangolin::Attach::Pix(180), 1.0)
+            .SetLayout(pangolin::LayoutEqual)
+            .AddDisplay(d_video);
+
+
+
     pangolin::CreatePanel("menu").SetBounds(0.0,1.0,0.0,pangolin::Attach::Pix(175));
     pangolin::Var<bool> menuFollowCamera("menu.Follow Camera",true,true);
+    pangolin::Var<bool> menuShowImg("menu.Show Image",true,true);
     pangolin::Var<bool> menuShowPoints("menu.Show Points",true,true);
     pangolin::Var<bool> menuShowLines("menu.Show Lines",true,true);
     pangolin::Var<bool> menuShowKeyFrames("menu.Show KeyFrames",true,true);
@@ -85,11 +96,14 @@ void Viewer::Run()
     pangolin::View& d_cam = pangolin::CreateDisplay()
             .SetBounds(0.0, 1.0, pangolin::Attach::Pix(175), 1.0, -1024.0f/768.0f)
             .SetHandler(new pangolin::Handler3D(s_cam));
+    d_cam.Activate(s_cam);
 
     pangolin::OpenGlMatrix Twc;
     Twc.SetIdentity();
 
 //    cv::namedWindow("ORB-SLAM2: Current Frame");
+    pangolin::GlTexture imageTexture(752, 480, GL_RGB,false,0,GL_BGR,GL_UNSIGNED_BYTE);
+
 
     bool bFollow = true;
     bool bLocalizationMode = false;
@@ -136,9 +150,18 @@ void Viewer::Run()
         if(menuShowLines)
             mpMapDrawer->DrawMapLines();
 
-        pangolin::FinishFrame();
 
-//        cv::Mat im = mpFrameDrawer->DrawFrame();
+
+        if(menuShowImg)
+        {
+            cv::Mat im = mpFrameDrawer->DrawFrame();
+            imageTexture.Upload(im.data,GL_BGR,GL_UNSIGNED_BYTE);
+            d_video.Activate();
+            glColor3f(1.0,1.0,1.0);
+            imageTexture.RenderToViewportFlipY();
+        }
+
+        pangolin::FinishFrame();
 //        cv::imshow("ORB-SLAM2: Current Frame",im);
 //        cv::waitKey(mT);
 

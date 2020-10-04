@@ -72,6 +72,12 @@ namespace ORB_SLAM2
             SetBadFlag();
     }
 
+    cv::Mat MapLine::GetDescriptor()
+    {
+        unique_lock<mutex> lock(mMutexFeatures);
+        return mDescriptor.clone();
+    }
+
     void MapLine::ComputeDistinctiveDescriptors()
     {
         // Retrieve all observed descriptors
@@ -174,6 +180,12 @@ namespace ORB_SLAM2
         return mbBad;
     }
 
+    bool MapLine::IsInKeyFrame(KeyFrame *pKF)
+    {
+        unique_lock<mutex> lock(mMutexFeatures);
+        return (mObservations.count(pKF));
+    }
+
     void MapLine::Update3D()
     {
         Eigen::Vector3d startPoint3dSum(0.,0.,0.);
@@ -186,6 +198,7 @@ namespace ORB_SLAM2
 
             Eigen::Vector3d twc = Converter::toVector3d( KF->GetCameraCenter() );
             Eigen::Matrix3d Rcw = Converter::toMatrix3d( KF->GetRotation() );
+            Eigen::Vector3d tcw = Converter::toVector3d( KF->GetTranslation() );
             Eigen::Matrix3d Rwc = Rcw.transpose();
 
             const float &cx = KF->cx;
@@ -206,16 +219,37 @@ namespace ORB_SLAM2
                 ob1(1) = (ob1(1) - cy) * invfy;
             }
 
-            auto [starP3d, endP3d] = plucker_.Get3D( Rwc, twc, ob0, ob1 );
+            auto plucker_cam = plucker_.Get_plk_transform( Rcw, tcw );
+            auto [starP3d, endP3d] = plucker_cam.Get3D( ob0, ob1 );
+            starP3d =  Rwc * starP3d + twc;
+            endP3d =  Rwc * endP3d + twc;
 
 //            std::cout << "starP3d = " << starP3d.transpose() << std::endl;
 //            std::cout << "endP3d = " << endP3d.transpose() << std::endl;
 //            std::cout << "dir = " << (starP3d - endP3d).normalized().transpose() << std::endl;
 //            std::cout << "len = " << (starP3d - endP3d).norm() << std::endl;
-            startPoint3dSum += starP3d;
-            endPoint3dSum += endP3d;
-//            mstartPoint3d_ = starP3d;
-//            mendPoint3d_ = endP3d;
+
+            Eigen::Vector3d dir_3d = (starP3d - endP3d).normalized();
+            auto dir_plk = plucker_.GetDir();
+            double equ_dir = dir_3d.dot( dir_plk );
+            const double thred = .998;
+            if( equ_dir > -thred && equ_dir < thred )
+            {
+                std::cerr << "dir_3d.dot( dir ) = " <<  equ_dir << std::endl;
+                std::cerr << "theta = " <<  std::acos(equ_dir) / M_PI * 180. << std::endl;
+            }
+            assert( !( equ_dir > -thred && equ_dir < thred ) );
+
+            if( equ_dir < -thred )
+            {
+                startPoint3dSum += endP3d;
+                endPoint3dSum += starP3d;
+            }
+            else
+            {
+                startPoint3dSum += starP3d;
+                endPoint3dSum += endP3d;
+            }
         }
 
 //        std::cout << "len = " << (mstartPoint3d_ - mendPoint3d_).norm() << std::endl;

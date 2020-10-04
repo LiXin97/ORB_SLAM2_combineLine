@@ -24,6 +24,7 @@
 #include "Tracking.h"
 #include "MapPoint.h"
 #include "Map.h"
+#include "xin/MapLine.h"
 
 #include<opencv2/core/core.hpp>
 #include<opencv2/features2d/features2d.hpp>
@@ -55,10 +56,17 @@ protected:
     // Info of the frame to be drawn
     cv::Mat mIm;
     int N;
+    int NL;
     vector<cv::KeyPoint> mvCurrentKeys;
     vector<bool> mvbMap, mvbVO;
+
+
+    std::vector<cv::line_descriptor::KeyLine> mvCurrentLines;
+    std::vector<bool> mvbLineMap, mvbLineVO;
+
     bool mbOnlyTracking;
     int mnTracked, mnTrackedVO;
+    int mnlTracked, mnlTrackedVO;
     vector<cv::KeyPoint> mvIniKeys;
     vector<int> mvIniMatches;
     int mState;

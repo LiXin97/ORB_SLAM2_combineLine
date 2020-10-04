@@ -510,6 +510,11 @@ void Tracking::Track()
                 if(mCurrentFrame.mvpMapPoints[i] && mCurrentFrame.mvbOutlier[i])
                     mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
             }
+            for(int i=0; i<mCurrentFrame.NL;i++)
+            {
+                if(mCurrentFrame.mvpMapLines[i] && mCurrentFrame.mvbLineOutlier[i])
+                    mCurrentFrame.mvpMapLines[i]=static_cast<MapLine*>(nullptr);
+            }
         }
 
         // Reset if the camera get lost soon after initialization
@@ -977,7 +982,27 @@ bool Tracking::TrackWithMotionModel()
             else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
                 nmatchesMap++;
         }
-    }    
+    }
+
+    int nlmatchesMap;
+    for(int i =0; i<mCurrentFrame.NL; i++)
+    {
+        if(mCurrentFrame.mvpMapLines[i])
+        {
+            if(mCurrentFrame.mvbLineOutlier[i])
+            {
+                MapLine* pML = mCurrentFrame.mvpMapLines[i];
+
+                mCurrentFrame.mvpMapLines[i]=static_cast<MapLine*>(nullptr);
+                mCurrentFrame.mvbLineOutlier[i]=false;
+                pML->mbTrackInView = false;
+                pML->mnLastFrameSeen = mCurrentFrame.mnId;
+                nlmatches--;
+            }
+            else if(mCurrentFrame.mvpMapLines[i]->Observations()>0)
+                nlmatchesMap++;
+        }
+    }
 
     if(mbOnlyTracking)
     {
@@ -1056,7 +1081,6 @@ bool Tracking::TrackLocalMap()
     else
         return true;
 }
-
 
 bool Tracking::NeedNewKeyFrame()
 {
@@ -1278,6 +1302,7 @@ void Tracking::SearchLocalPoints()
 
 void Tracking::SearchLocalLines()
 {
+    // Do not search map lines already matched
     for( auto&pML:mCurrentFrame.mvpMapLines )
     {
         if( !pML ) continue;
@@ -1288,6 +1313,30 @@ void Tracking::SearchLocalLines()
             pML->mnLastFrameSeen = mCurrentFrame.mnId;
             pML->mbTrackInView = false;
         }
+    }
+
+    int nToMatch=0;
+
+    for(auto &pML:mvpLocalMapLines)
+    {
+        if( pML->mnLastFrameSeen == mCurrentFrame.mnId ) continue;
+        if(pML->isBad()) continue;
+
+        //Project
+        if( mCurrentFrame.isInFrustum(pML, .5) )
+        {
+            pML->IncreaseVisible();
+            nToMatch++;
+        }
+    }
+
+    if( nToMatch > 0 )
+    {
+//        std::cout << nToMatch << std::endl;
+        LineMatcher lmatcher(.5);
+        int suc = lmatcher.SearchByProjection(mCurrentFrame, mvpLocalMapLines);
+
+//        std::cout << "suc match local map line = " << suc << std::endl;
     }
 }
 

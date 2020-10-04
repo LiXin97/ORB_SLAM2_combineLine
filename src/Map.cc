@@ -157,9 +157,11 @@ void Map::clear()
         delete *sit;
 
     mspMapPoints.clear();
+    mspMapLines.clear();
     mspKeyFrames.clear();
     mnMaxKFid = 0;
     mvpReferenceMapPoints.clear();
+    mvpReferenceMapLines.clear();
     mvpKeyFrameOrigins.clear();
 }
 

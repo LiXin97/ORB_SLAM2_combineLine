@@ -69,6 +69,50 @@ namespace ORB_SLAM2
         return nmatches;
     }
 
+    int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLine *> &vpLocalMapLines)
+    {
+        int nmatches = 0;
+
+        for( auto &pML:vpLocalMapLines )
+        {
+            if( !pML->mbTrackInView ) continue;
+            if( pML->isBad() ) continue;
+
+            const auto MLdescri = pML->GetDescriptor();
+
+            //TODO xinli add
+            int bestDist=256;
+            int bestDist2=256;
+            int bestIdx =-1 ;
+            for( int i = 0; i<F.NL;++i )
+            {
+                const cv::Mat &d = F.mDescriptorLine.row(i);
+                const int dist = ORBmatcher::DescriptorDistance(MLdescri,d);
+
+                if(dist<bestDist)
+                {
+                    bestDist2=bestDist;
+                    bestDist=dist;
+                    bestIdx=i;
+                }
+                else if(dist<bestDist2)
+                {
+                    bestDist2=dist;
+                }
+            }
+
+            if( bestDist < TH_LOW )
+            {
+                if( bestDist > mnnratio * bestDist2 ) continue;
+
+                F.mvpMapLines[bestIdx] = pML;
+                nmatches++;
+            }
+        }
+
+        return nmatches;
+    }
+
     int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame, const float th) const
     {
         int nmatcher = 0;
@@ -85,10 +129,16 @@ namespace ORB_SLAM2
         //  a-----b
         //  |     |
         //  d-----c
-        Eigen::Vector3d corna( -cx * invfx, -cy * invfy, 1. );
-        Eigen::Vector3d cornb( -cx * invfx, -cy * invfy, 1. );
-        Eigen::Vector3d cornc( -cx * invfx, -cy * invfy, 1. );
-        Eigen::Vector3d cornd( -cx * invfx, -cy * invfy, 1. );
+
+        double minX = ORB_SLAM2::Frame::mnMinX;
+        double minY = ORB_SLAM2::Frame::mnMinY;
+        double maxX = ORB_SLAM2::Frame::mnMaxX;
+        double maxY = ORB_SLAM2::Frame::mnMaxY;
+
+        Eigen::Vector3d corna( (minX-cx) * invfx, (minY-cy) * invfy, 1. );
+        Eigen::Vector3d cornb( (maxX-cx) * invfx, (minY-cy) * invfy, 1. );
+        Eigen::Vector3d cornc( (maxX-cx) * invfx, (maxY-cy) * invfy, 1. );
+        Eigen::Vector3d cornd( (minX-cx) * invfx, (maxY-cy) * invfy, 1. );
 
         cv::Mat descr_last;
         std::vector< size_t > ori_idex;

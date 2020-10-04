@@ -377,6 +377,44 @@ bool Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
     return true;
 }
 
+bool Frame::isInFrustum(MapLine *pML, float viewingCosLimit)
+{
+    pML->mbTrackInView = false;
+
+    const cv::Mat cvRcw = mTcw.rowRange(0,3).colRange(0,3);
+    const cv::Mat cvtcw = mTcw.rowRange(0,3).col(3);
+    Eigen::Matrix3d Rcw = Converter::toMatrix3d(cvRcw);
+    Eigen::Vector3d tcw = Converter::toVector3d(cvtcw);
+
+    double minX = ORB_SLAM2::Frame::mnMinX;
+    double minY = ORB_SLAM2::Frame::mnMinY;
+    double maxX = ORB_SLAM2::Frame::mnMaxX;
+    double maxY = ORB_SLAM2::Frame::mnMaxY;
+
+    Eigen::Vector3d corna( (minX-cx) * invfx, (minY-cy) * invfy, 1. );
+    Eigen::Vector3d cornb( (maxX-cx) * invfx, (minY-cy) * invfy, 1. );
+    Eigen::Vector3d cornc( (maxX-cx) * invfx, (maxY-cy) * invfy, 1. );
+    Eigen::Vector3d cornd( (minX-cx) * invfx, (maxY-cy) * invfy, 1. );
+
+    auto plucker = pML->GetPlucker();
+    plucker.plk_transform( Rcw, tcw );
+    auto nc = plucker.GetNorm();
+
+    double error_a = nc.dot( corna );
+    double error_b = nc.dot( cornb );
+    double error_c = nc.dot( cornc );
+    double error_d = nc.dot( cornd );
+
+    if( error_a > 0 && error_b > 0 && error_c > 0 && error_d > 0 )
+        return false;
+    if( error_a < 0 && error_b < 0 && error_c < 0 && error_d < 0 )
+        return false;
+
+    //TODO xinli check
+    pML->mbTrackInView = true;
+    return true;
+}
+
 vector<size_t> Frame::GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel, const int maxLevel) const
 {
     vector<size_t> vIndices;
