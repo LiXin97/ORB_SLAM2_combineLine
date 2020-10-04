@@ -709,7 +709,9 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         optimizer.addVertex(vSE3);
         if(pKFi->mnId>maxKFid)
             maxKFid=pKFi->mnId;
+//        std::cout << "pKFi->mnId = " << pKFi->mnId << std::endl;
     }
+//    std::cout << "-=-=-=-=-=-=-=-=-=--=-=-=-=-=" << std::endl;
 
     // Set Fixed KeyFrame vertices
     for(list<KeyFrame*>::iterator lit=lFixedCameras.begin(), lend=lFixedCameras.end(); lit!=lend; lit++)
@@ -958,184 +960,200 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
 
 void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map* pMap)
 {
-    // Local KeyFrames: First Breath Search from Current Keyframe
-    list<KeyFrame*> lLocalKeyFrames;
-
-    lLocalKeyFrames.push_back(pKF);
-    pKF->mnBALocalForKF = pKF->mnId;
-
-    const vector<KeyFrame*> vNeighKFs = pKF->GetVectorCovisibleKeyFrames();
-    for(int i=0, iend=vNeighKFs.size(); i<iend; i++)
+    for( int it= 0; it< 2; ++it )
     {
-        KeyFrame* pKFi = vNeighKFs[i];
-        pKFi->mnBALocalForKF = pKF->mnId;
-        if(!pKFi->isBad())
-            lLocalKeyFrames.push_back(pKFi);
-    }
+        // Local KeyFrames: First Breath Search from Current Keyframe
+        list<KeyFrame*> lLocalKeyFrames;
 
-    // Local MapPoints seen in Local KeyFrames
-    list<MapPoint*> lLocalMapPoints;
-    for(list<KeyFrame*>::iterator lit=lLocalKeyFrames.begin() , lend=lLocalKeyFrames.end(); lit!=lend; lit++)
-    {
-        vector<MapPoint*> vpMPs = (*lit)->GetMapPointMatches();
-        for(vector<MapPoint*>::iterator vit=vpMPs.begin(), vend=vpMPs.end(); vit!=vend; vit++)
+        lLocalKeyFrames.push_back(pKF);
+        pKF->mnBALocalForKF = pKF->mnId;
+
+        const vector<KeyFrame*> vNeighKFs = pKF->GetVectorCovisibleKeyFrames();
+        for(int i=0, iend=vNeighKFs.size(); i<iend; i++)
         {
-            MapPoint* pMP = *vit;
-            if(pMP)
-                if(!pMP->isBad())
-                    if(pMP->mnBALocalForKF!=pKF->mnId)
-                    {
-                        lLocalMapPoints.push_back(pMP);
-                        pMP->mnBALocalForKF=pKF->mnId;
-                    }
+            KeyFrame* pKFi = vNeighKFs[i];
+            pKFi->mnBALocalForKF = pKF->mnId;
+            if(!pKFi->isBad())
+                lLocalKeyFrames.push_back(pKFi);
         }
-    }
 
-    // Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
-    list<KeyFrame*> lFixedCameras;
-    for(list<MapPoint*>::iterator lit=lLocalMapPoints.begin(), lend=lLocalMapPoints.end(); lit!=lend; lit++)
-    {
-        map<KeyFrame*,size_t> observations = (*lit)->GetObservations();
-        for(map<KeyFrame*,size_t>::iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
+        // Local MapPoints seen in Local KeyFrames
+        list<MapPoint*> lLocalMapPoints;
+        for(list<KeyFrame*>::iterator lit=lLocalKeyFrames.begin() , lend=lLocalKeyFrames.end(); lit!=lend; lit++)
         {
-            KeyFrame* pKFi = mit->first;
-
-            if(pKFi->mnBALocalForKF!=pKF->mnId && pKFi->mnBAFixedForKF!=pKF->mnId)
+            vector<MapPoint*> vpMPs = (*lit)->GetMapPointMatches();
+            for(vector<MapPoint*>::iterator vit=vpMPs.begin(), vend=vpMPs.end(); vit!=vend; vit++)
             {
-                pKFi->mnBAFixedForKF=pKF->mnId;
-                if(!pKFi->isBad())
-                    lFixedCameras.push_back(pKFi);
+                MapPoint* pMP = *vit;
+                if(pMP)
+                    if(!pMP->isBad())
+                        if(pMP->mnBALocalForKF!=pKF->mnId)
+                        {
+                            lLocalMapPoints.push_back(pMP);
+                            pMP->mnBALocalForKF=pKF->mnId;
+                        }
             }
         }
-    }
 
-    ceres::Problem problem;
+        // Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
+        list<KeyFrame*> lFixedCameras;
+        for(list<MapPoint*>::iterator lit=lLocalMapPoints.begin(), lend=lLocalMapPoints.end(); lit!=lend; lit++)
+        {
+            map<KeyFrame*,size_t> observations = (*lit)->GetObservations();
+            for(map<KeyFrame*,size_t>::iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
+            {
+                KeyFrame* pKFi = mit->first;
 
-    double para_Feature_point[lLocalMapPoints.size()][3];
+                if(pKFi->mnBALocalForKF!=pKF->mnId && pKFi->mnBAFixedForKF!=pKF->mnId)
+                {
+                    pKFi->mnBAFixedForKF=pKF->mnId;
+                    if(!pKFi->isBad())
+                        lFixedCameras.push_back(pKFi);
+                }
+            }
+        }
 
-    int index_point = -1;
-    for( auto&mapPoint:lLocalMapPoints )
-    {
-        index_point++;
-        Eigen::Vector3d point3d = Converter::toVector3d( mapPoint->GetWorldPos() );
+        ceres::Problem problem;
 
-        para_Feature_point[index_point][0] = point3d[0];
-        para_Feature_point[index_point][1] = point3d[1];
-        para_Feature_point[index_point][2] = point3d[2];
+        double para_Feature_point[lLocalMapPoints.size()][3];
 
-        problem.AddParameterBlock(para_Feature_point[index_point], 3);
-    }
+        int index_point = -1;
+        for( auto&mapPoint:lLocalMapPoints )
+        {
+            index_point++;
+            Eigen::Vector3d point3d = Converter::toVector3d( mapPoint->GetWorldPos() );
 
-    double para_Pose[lLocalKeyFrames.size() + lFixedCameras.size()][7];
-    std::map< size_t, size_t >  kFid_id;
-    int index_kf = -1;
-    for( auto &kf:lLocalKeyFrames )
-    {
-        index_kf++;
-        kFid_id.insert( std::make_pair(kf->mnId, index_kf) );
-        cv::Mat Tcw_mat = kf->GetPose();
+            para_Feature_point[index_point][0] = point3d[0];
+            para_Feature_point[index_point][1] = point3d[1];
+            para_Feature_point[index_point][2] = point3d[2];
 
-        Eigen::Matrix<double,3,3> Rcw;
-        Rcw << Tcw_mat.at<float>(0,0), Tcw_mat.at<float>(0,1), Tcw_mat.at<float>(0,2),
-                Tcw_mat.at<float>(1,0), Tcw_mat.at<float>(1,1), Tcw_mat.at<float>(1,2),
-                Tcw_mat.at<float>(2,0), Tcw_mat.at<float>(2,1), Tcw_mat.at<float>(2,2);
+            problem.AddParameterBlock(para_Feature_point[index_point], 3);
+        }
 
-        Eigen::Matrix<double,3,1> tcw(Tcw_mat.at<float>(0,3), Tcw_mat.at<float>(1,3), Tcw_mat.at<float>(2,3));
-        Eigen::Quaterniond Qcw(Rcw);
+//        int num_unfix_pos = 0, num_fix_pos = 0;
+        double para_Pose[lLocalKeyFrames.size() + lFixedCameras.size()][7];
+        std::map< size_t, size_t >  kFid_id;
+        int index_kf = -1;
+        long unsigned int minId = std::numeric_limits<int>::max();
+        int minId_index = 0;
+        for( auto &kf:lLocalKeyFrames )
+        {
+//            num_unfix_pos++;
+            index_kf++;
+            kFid_id.insert( std::make_pair(kf->mnId, index_kf) );
+            cv::Mat Tcw_mat = kf->GetPose();
 
-        para_Pose[index_kf][0] = tcw(0);
-        para_Pose[index_kf][1] = tcw(1);
-        para_Pose[index_kf][2] = tcw(2);
-        para_Pose[index_kf][3] = Qcw.x();
-        para_Pose[index_kf][4] = Qcw.y();
-        para_Pose[index_kf][5] = Qcw.z();
-        para_Pose[index_kf][6] = Qcw.w();
+            Eigen::Matrix<double,3,3> Rcw;
+            Rcw << Tcw_mat.at<float>(0,0), Tcw_mat.at<float>(0,1), Tcw_mat.at<float>(0,2),
+                    Tcw_mat.at<float>(1,0), Tcw_mat.at<float>(1,1), Tcw_mat.at<float>(1,2),
+                    Tcw_mat.at<float>(2,0), Tcw_mat.at<float>(2,1), Tcw_mat.at<float>(2,2);
 
-        ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
-        problem.AddParameterBlock(para_Pose[index_kf], 7, local_parameterization);
-        if( kf->mnId == 0 )
+            Eigen::Matrix<double,3,1> tcw(Tcw_mat.at<float>(0,3), Tcw_mat.at<float>(1,3), Tcw_mat.at<float>(2,3));
+            Eigen::Quaterniond Qcw(Rcw);
+
+            para_Pose[index_kf][0] = tcw(0);
+            para_Pose[index_kf][1] = tcw(1);
+            para_Pose[index_kf][2] = tcw(2);
+            para_Pose[index_kf][3] = Qcw.x();
+            para_Pose[index_kf][4] = Qcw.y();
+            para_Pose[index_kf][5] = Qcw.z();
+            para_Pose[index_kf][6] = Qcw.w();
+
+            ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+            problem.AddParameterBlock(para_Pose[index_kf], 7, local_parameterization);
+//            if( kf->mnId == 0 )
+//                problem.SetParameterBlockConstant( para_Pose[index_kf] );
+            if( kf->mnId < minId )
+            {
+                minId = kf->mnId;
+                minId_index = index_kf;
+            }
+        }
+        problem.SetParameterBlockConstant( para_Pose[minId_index] );
+        for( auto &kf:lFixedCameras )
+        {
+//            num_fix_pos++;
+            index_kf++;
+            kFid_id.insert( std::make_pair(kf->mnId, index_kf) );
+            cv::Mat Tcw_mat = kf->GetPose();
+
+            Eigen::Matrix<double,3,3> Rcw;
+            Rcw << Tcw_mat.at<float>(0,0), Tcw_mat.at<float>(0,1), Tcw_mat.at<float>(0,2),
+                    Tcw_mat.at<float>(1,0), Tcw_mat.at<float>(1,1), Tcw_mat.at<float>(1,2),
+                    Tcw_mat.at<float>(2,0), Tcw_mat.at<float>(2,1), Tcw_mat.at<float>(2,2);
+
+            Eigen::Matrix<double,3,1> tcw(Tcw_mat.at<float>(0,3), Tcw_mat.at<float>(1,3), Tcw_mat.at<float>(2,3));
+            Eigen::Quaterniond Qcw(Rcw);
+
+            para_Pose[index_kf][0] = tcw(0);
+            para_Pose[index_kf][1] = tcw(1);
+            para_Pose[index_kf][2] = tcw(2);
+            para_Pose[index_kf][3] = Qcw.x();
+            para_Pose[index_kf][4] = Qcw.y();
+            para_Pose[index_kf][5] = Qcw.z();
+            para_Pose[index_kf][6] = Qcw.w();
+
+            ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+            problem.AddParameterBlock(para_Pose[index_kf], 7, local_parameterization);
             problem.SetParameterBlockConstant( para_Pose[index_kf] );
-    }
-    for( auto &kf:lFixedCameras )
-    {
-        index_kf++;
-        kFid_id.insert( std::make_pair(kf->mnId, index_kf) );
-        cv::Mat Tcw_mat = kf->GetPose();
+        }
 
-        Eigen::Matrix<double,3,3> Rcw;
-        Rcw << Tcw_mat.at<float>(0,0), Tcw_mat.at<float>(0,1), Tcw_mat.at<float>(0,2),
-                Tcw_mat.at<float>(1,0), Tcw_mat.at<float>(1,1), Tcw_mat.at<float>(1,2),
-                Tcw_mat.at<float>(2,0), Tcw_mat.at<float>(2,1), Tcw_mat.at<float>(2,2);
+//        std::cout << "num_fix_pos = " << num_fix_pos << std::endl;
+//        std::cout << "num_unfix_pos = " << num_unfix_pos << std::endl;
 
-        Eigen::Matrix<double,3,1> tcw(Tcw_mat.at<float>(0,3), Tcw_mat.at<float>(1,3), Tcw_mat.at<float>(2,3));
-        Eigen::Quaterniond Qcw(Rcw);
-
-        para_Pose[index_kf][0] = tcw(0);
-        para_Pose[index_kf][1] = tcw(1);
-        para_Pose[index_kf][2] = tcw(2);
-        para_Pose[index_kf][3] = Qcw.x();
-        para_Pose[index_kf][4] = Qcw.y();
-        para_Pose[index_kf][5] = Qcw.z();
-        para_Pose[index_kf][6] = Qcw.w();
-
-        ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
-        problem.AddParameterBlock(para_Pose[index_kf], 7, local_parameterization);
-        problem.SetParameterBlockConstant( para_Pose[index_kf] );
-    }
-
-    int factor_num = 0;
-    index_point = -1;
-    for( auto&mapPoint:lLocalMapPoints )
-    {
-        index_point++;
-        const map<KeyFrame*,size_t> observations = mapPoint->GetObservations();
-        for( auto&observ:observations )
+        int factor_num = 0;
+        index_point = -1;
+        for( auto&mapPoint:lLocalMapPoints )
         {
-            auto pKFi = observ.first;
-            if( !pKFi->isBad() )
+            index_point++;
+            const map<KeyFrame*,size_t> observations = mapPoint->GetObservations();
+            for( auto&observ:observations )
             {
-                auto kpUn = pKFi->mvKeysUn[ observ.second ];
-
-
-                if(pKFi->mvuRight[observ.second]<0)
+                auto pKFi = observ.first;
+                if( !pKFi->isBad() )
                 {
-                    const float &fx = pKFi->fx;
-                    const float &fy = pKFi->fy;
-                    const float &cx = pKFi->cx;
-                    const float &cy = pKFi->cy;
-                    const float &invfx = pKFi->invfx;
-                    const float &invfy = pKFi->invfy;
-
-                    Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
+                    auto kpUn = pKFi->mvKeysUn[ observ.second ];
 
 
-                    size_t kf_index = kFid_id[ pKFi->mnId ];
-                    auto loss_function = new ceres::CauchyLoss( 5.991 );
-                    auto cost_function = new MonoProjection( obs_point );
-                    problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_point[index_point]);
-                    factor_num++;
-                }
-                else
-                {
-                    assert(1);
+                    if(pKFi->mvuRight[observ.second]<0)
+                    {
+                        const float &fx = pKFi->fx;
+                        const float &fy = pKFi->fy;
+                        const float &cx = pKFi->cx;
+                        const float &cy = pKFi->cy;
+                        const float &invfx = pKFi->invfx;
+                        const float &invfy = pKFi->invfy;
+
+                        Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
+
+
+                        size_t kf_index = kFid_id[ pKFi->mnId ];
+                        auto loss_function = new ceres::CauchyLoss( 5.991 );
+                        auto cost_function = new MonoProjection( obs_point );
+                        problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_point[index_point]);
+                        factor_num++;
+                    }
+                    else
+                    {
+                        assert(1);
+                    }
                 }
             }
         }
-    }
 
-    ceres::Solver::Options options;
-    options.linear_solver_type = ceres::SPARSE_SCHUR;
-    options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;  // LEVENBERG_MARQUARDT  DOGLEG
-    //    options.linear_solver_type = ceres::SPARSE_SCHUR; // SPARSE_NORMAL_CHOLESKY  or DENSE_SCHUR
-    options.max_num_iterations = 10;
-    options.minimizer_progress_to_stdout = false;
+        ceres::Solver::Options options;
+        options.linear_solver_type = ceres::SPARSE_SCHUR;
+        options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;  // LEVENBERG_MARQUARDT  DOGLEG
+        //    options.linear_solver_type = ceres::SPARSE_SCHUR; // SPARSE_NORMAL_CHOLESKY  or DENSE_SCHUR
+        options.max_num_iterations = 10;
+        options.minimizer_progress_to_stdout = false;
 
-    //        TicToc solver_time;
-    ceres::Solver::Summary summary;
-    ceres::Solve (options, &problem, & summary);
+        //        TicToc solver_time;
+        ceres::Solver::Summary summary;
+        ceres::Solve (options, &problem, & summary);
 
-    double InitialRMSE = std::sqrt( summary.initial_cost / summary.num_residuals);
-    double FinalRMSE = std::sqrt( summary.final_cost / summary.num_residuals);
+        double InitialRMSE = std::sqrt( summary.initial_cost / summary.num_residuals);
+        double FinalRMSE = std::sqrt( summary.final_cost / summary.num_residuals);
 //    std::cout << std::endl
 //              << "LocalBundleAdjustment statistics (approximated RMSE):\n"
 //              << " #3D Points: " << index_point+1 << "\n"
@@ -1147,96 +1165,97 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
 //              << " Time (s): " << summary.total_time_in_seconds << "\n"
 //              << std::endl;
 
-    vector<pair<KeyFrame*,MapPoint*> > vToErase;
-    vToErase.reserve(factor_num);
+        vector<pair<KeyFrame*,MapPoint*> > vToErase;
+        vToErase.reserve(factor_num);
 
-    // Check inlier observations
-    index_point = -1;
-    for( auto&mapPoint:lLocalMapPoints )
-    {
-        index_point++;
-        Eigen::Vector3d point3d( para_Feature_point[index_point][0], para_Feature_point[index_point][1], para_Feature_point[index_point][2] );
-        const map<KeyFrame*,size_t> observations = mapPoint->GetObservations();
-        for( auto&observ:observations )
+        // Check inlier observations
+        index_point = -1;
+        for( auto&mapPoint:lLocalMapPoints )
         {
-            auto pKFi = observ.first;
-            if( !pKFi->isBad() )
+            index_point++;
+            Eigen::Vector3d point3d( para_Feature_point[index_point][0], para_Feature_point[index_point][1], para_Feature_point[index_point][2] );
+            const map<KeyFrame*,size_t> observations = mapPoint->GetObservations();
+            for( auto&observ:observations )
             {
-                auto kpUn = pKFi->mvKeysUn[ observ.second ];
-                if(pKFi->mvuRight[observ.second]<0)
+                auto pKFi = observ.first;
+                if( !pKFi->isBad() )
                 {
-                    const float &fx = pKFi->fx;
-                    const float &fy = pKFi->fy;
-                    const float &cx = pKFi->cx;
-                    const float &cy = pKFi->cy;
-                    const float &invfx = pKFi->invfx;
-                    const float &invfy = pKFi->invfy;
-                    Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
-
-
-                    size_t kf_index = kFid_id[ pKFi->mnId ];
-                    Eigen::Matrix<double,3,3> Rcw = Eigen::Quaterniond( para_Pose[kf_index][6], para_Pose[kf_index][3], para_Pose[kf_index][4], para_Pose[kf_index][5] ).toRotationMatrix();
-                    Eigen::Matrix<double,3,1> tcw(para_Pose[kf_index][0], para_Pose[kf_index][1], para_Pose[kf_index][2]);
-
-                    Eigen::Vector3d point2d = Rcw * point3d + tcw;
-                    Eigen::Vector3d point2d_norm = point2d;
-                    point2d_norm /= point2d_norm(2);
-
-                    double error = std::pow( ( point2d_norm(0) - obs_point(0) ) * MonoProjection::sqrt_info(0,0),2 )
-                                   + std::pow( ( point2d_norm(1) - obs_point(1) ) * MonoProjection::sqrt_info(1,1),2 );
-                    error = std::sqrt(error);
-                    if( error > 5.991 || point2d(2) < 0 )
+                    auto kpUn = pKFi->mvKeysUn[ observ.second ];
+                    if(pKFi->mvuRight[observ.second]<0)
                     {
-                        vToErase.emplace_back(pKFi,mapPoint);
+                        const float &fx = pKFi->fx;
+                        const float &fy = pKFi->fy;
+                        const float &cx = pKFi->cx;
+                        const float &cy = pKFi->cy;
+                        const float &invfx = pKFi->invfx;
+                        const float &invfy = pKFi->invfy;
+                        Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
+
+
+                        size_t kf_index = kFid_id[ pKFi->mnId ];
+                        Eigen::Matrix<double,3,3> Rcw = Eigen::Quaterniond( para_Pose[kf_index][6], para_Pose[kf_index][3], para_Pose[kf_index][4], para_Pose[kf_index][5] ).toRotationMatrix();
+                        Eigen::Matrix<double,3,1> tcw(para_Pose[kf_index][0], para_Pose[kf_index][1], para_Pose[kf_index][2]);
+
+                        Eigen::Vector3d point2d = Rcw * point3d + tcw;
+                        Eigen::Vector3d point2d_norm = point2d;
+                        point2d_norm /= point2d_norm(2);
+
+                        double error = std::pow( ( point2d_norm(0) - obs_point(0) ) * MonoProjection::sqrt_info(0,0),2 )
+                                       + std::pow( ( point2d_norm(1) - obs_point(1) ) * MonoProjection::sqrt_info(1,1),2 );
+                        error = std::sqrt(error);
+                        if( error > 5.991 || point2d(2) < 0 )
+                        {
+                            vToErase.emplace_back(pKFi,mapPoint);
+                        }
                     }
-                }
-                else
-                {
-                    assert(1);
+                    else
+                    {
+                        assert(1);
+                    }
                 }
             }
         }
-    }
 
 
-    // Get Map Mutex
-    unique_lock<mutex> lock(pMap->mMutexMapUpdate);
+        // Get Map Mutex
+        unique_lock<mutex> lock(pMap->mMutexMapUpdate);
 
-    if(!vToErase.empty())
-    {
-        for(auto & i : vToErase)
+        if(!vToErase.empty())
         {
-            KeyFrame* pKFi = i.first;
-            MapPoint* pMPi = i.second;
-            pKFi->EraseMapPointMatch(pMPi);
-            pMPi->EraseObservation(pKFi);
+            for(auto & i : vToErase)
+            {
+                KeyFrame* pKFi = i.first;
+                MapPoint* pMPi = i.second;
+                pKFi->EraseMapPointMatch(pMPi);
+                pMPi->EraseObservation(pKFi);
+            }
         }
-    }
 
-    // Recover optimized data
+        // Recover optimized data
 
-    index_kf = -1;
-    //Keyframes
-    for(auto pKFi : lLocalKeyFrames)
-    {
-        index_kf++;
-        Eigen::Matrix4d Tcw = Eigen::Matrix4d::Identity();
-        Tcw( 0, 3 ) = para_Pose[index_kf][0];
-        Tcw( 1, 3 ) = para_Pose[index_kf][1];
-        Tcw( 2, 3 ) = para_Pose[index_kf][2];
-        Tcw.block<3,3>(0,0) = Eigen::Quaterniond( para_Pose[index_kf][6], para_Pose[index_kf][3], para_Pose[index_kf][4], para_Pose[index_kf][5] ).toRotationMatrix();
-        pKFi->SetPose(Converter::toCvMat(Tcw));
-    }
+        index_kf = -1;
+        //Keyframes
+        for(auto pKFi : lLocalKeyFrames)
+        {
+            index_kf++;
+            Eigen::Matrix4d Tcw = Eigen::Matrix4d::Identity();
+            Tcw( 0, 3 ) = para_Pose[index_kf][0];
+            Tcw( 1, 3 ) = para_Pose[index_kf][1];
+            Tcw( 2, 3 ) = para_Pose[index_kf][2];
+            Tcw.block<3,3>(0,0) = Eigen::Quaterniond( para_Pose[index_kf][6], para_Pose[index_kf][3], para_Pose[index_kf][4], para_Pose[index_kf][5] ).toRotationMatrix();
+            pKFi->SetPose(Converter::toCvMat(Tcw));
+        }
 
 
-    index_point = -1;
-    //Points
-    for(auto pMP : lLocalMapPoints)
-    {
-        index_point++;
-        Eigen::Vector3d point_estiate( para_Feature_point[index_point][0], para_Feature_point[index_point][1], para_Feature_point[index_point][2] );
-        pMP->SetWorldPos(Converter::toCvMat(point_estiate));
-        pMP->UpdateNormalAndDepth();
+        index_point = -1;
+        //Points
+        for(auto pMP : lLocalMapPoints)
+        {
+            index_point++;
+            Eigen::Vector3d point_estiate( para_Feature_point[index_point][0], para_Feature_point[index_point][1], para_Feature_point[index_point][2] );
+            pMP->SetWorldPos(Converter::toCvMat(point_estiate));
+            pMP->UpdateNormalAndDepth();
+        }
     }
 }
 

@@ -45,9 +45,9 @@ ORBextractor.minThFAST: 7
 # Line Parameters
 #--------------------------------------------------------------------------------------------
 
-LineExtractor.nLineFeatures: 150
+LineExtractor.nLineFeatures: 250
 LineExtractor.nLineMethod: 1 # 0:LSD 1:FLD 2:TP-LSD
-LineExtractor.nMinLineLength: 50
+LineExtractor.nMinLineLength: 30
 
 #--------------------------------------------------------------------------------------------
 # Viewer Parameters

@@ -23,14 +23,29 @@ namespace ORB_SLAM2
     :nLineFeatures_(nLineFeatures), nminLineLength_(nminLinelength)
     {
         fld_ = cv::ximgproc::createFastLineDetector(nminLineLength_);
-        lbd_ = cv::line_descriptor::BinaryDescriptor::createBinaryDescriptor( );;
+        lbd_ = cv::line_descriptor::BinaryDescriptor::createBinaryDescriptor( );
     }
 
     void FLDExtractor::operator()(const cv::Mat &im, std::vector<cv::line_descriptor::KeyLine> &line, cv::Mat &lbd_descr)
     {
-        std::vector<cv::Vec4f> fld_lines;
+        std::vector<cv::Vec4f> fld_lines_tmp;
+        fld_->detect( im, fld_lines_tmp );
 
-        fld_->detect( im, fld_lines );
+        std::vector<cv::Vec4f> fld_lines;
+        {
+            //TODO add to yaml
+            for( auto& fld_line:fld_lines_tmp )
+            {
+                bool outLeft  = fld_line[0] < 35.f  && fld_line[2] < 35.f;
+                bool outRight = fld_line[0] > 600.f && fld_line[2] > 600.f;
+                bool outUp    = fld_line[1] < 40.f  && fld_line[3] < 40.f;
+                bool outDown  = fld_line[1] > 440.f && fld_line[3] > 440.f;
+                if(outLeft || outRight || outUp || outDown){
+                    continue;
+                }
+                fld_lines.push_back(fld_line);
+            }
+        }
 
         if(fld_lines.size() > nLineFeatures_)
         {

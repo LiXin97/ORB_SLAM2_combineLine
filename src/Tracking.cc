@@ -1333,7 +1333,7 @@ void Tracking::SearchLocalLines()
     if( nToMatch > 0 )
     {
 //        std::cout << nToMatch << std::endl;
-        LineMatcher lmatcher(.5);
+        LineMatcher lmatcher(.75);
         int suc = lmatcher.SearchByProjection(mCurrentFrame, mvpLocalMapLines);
 
 //        std::cout << "suc match local map line = " << suc << std::endl;

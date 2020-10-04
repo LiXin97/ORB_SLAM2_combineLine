@@ -177,6 +177,8 @@ namespace ORB_SLAM2
         bool isBad();
         bool IsInKeyFrame(KeyFrame* pKF);
 
+        double GetFoundRatio();
+
         std::map<KeyFrame*,size_t> GetObservations();
         int Observations();
         inline int GetFound(){

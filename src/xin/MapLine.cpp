@@ -186,6 +186,12 @@ namespace ORB_SLAM2
         return (mObservations.count(pKF));
     }
 
+    double MapLine::GetFoundRatio()
+    {
+        unique_lock<mutex> lock(mMutexFeatures);
+        return static_cast<double>(mnFound)/static_cast<double>(mnVisible);
+    }
+
     void MapLine::Update3D()
     {
         Eigen::Vector3d startPoint3dSum(0.,0.,0.);

@@ -238,7 +238,35 @@ void LocalMapping::MapPointCulling()
 
 void LocalMapping::MapLineCulling()
 {
+    auto it_Line = mlpRecentAddedMapLines.begin();
+    const unsigned long int nCurrentKFid = mpCurrentKeyFrame->mnId;
 
+    const int cnThObs = 2;
+    while( it_Line != mlpRecentAddedMapLines.end() )
+    {
+        auto pML = *it_Line;
+        if( pML->isBad() )
+        {
+            it_Line = mlpRecentAddedMapLines.erase(it_Line);
+        }
+        else if(pML->GetFoundRatio() < .15 ) //TODO xinli check ratio
+        {
+            pML->SetBadFlag();
+            it_Line = mlpRecentAddedMapLines.erase(it_Line);
+        }
+        else if(((int)nCurrentKFid-(int)pML->mnFirstKFid)>=2 && pML->Observations()<=cnThObs)
+        {
+            pML->SetBadFlag();
+            it_Line = mlpRecentAddedMapLines.erase(it_Line);
+        }
+        else if(((int)nCurrentKFid-(int)pML->mnFirstKFid)>=3)
+            it_Line = mlpRecentAddedMapLines.erase(it_Line);
+        else
+        {
+            it_Line++;
+//            std::cout << "pML->Observations() = " << pML->Observations() << std::endl;
+        }
+    }
 }
 
 void LocalMapping::CreateNewMapLines()

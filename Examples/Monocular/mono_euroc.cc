@@ -129,7 +129,15 @@ int main(int argc, char **argv)
         if(ttrack<T)
             usleep((T-ttrack)*1e6);
 
-//        usleep((.1)*1e6);
+//        usleep((.02)*1e6);
+    }
+
+    while(true)
+    {
+        std::cout << " Input Q or q to exit " << std::endl;
+        char c_get;
+        std::cin >> c_get;
+        if( c_get == 'Q' || c_get == 'q' ) break;
     }
 
     // Stop all threads

@@ -138,22 +138,22 @@ cv::Mat FrameDrawer::DrawFrame()
 
                 if( vbLineMap[i] )
                 {
-                    cv::line(im, startP, endP, cv::Scalar(0,255,0),2 ,8);
+                    cv::line(im, startP, endP, cv::Scalar(255,0,0),4 ,8);
                     mnlTracked++;
                 }
                 else
                 {
-                    cv::line(im, startP, endP, cv::Scalar(255,0,0),2 ,8);
+                    cv::line(im, startP, endP, cv::Scalar(0,255,0),4 ,8);
                     mnlTrackedVO++;
                 }
             }
         }
     }
 
-    cv::Mat imWithInfo;
-    DrawTextInfo(im,state, imWithInfo);
+//    cv::Mat imWithInfo;
+//    DrawTextInfo(im,state, imWithInfo);
 
-    return imWithInfo;
+    return im;
 }
 
 
@@ -228,6 +228,21 @@ void FrameDrawer::Update(Tracking *pTracker)
                         mvbMap[i]=true;
                     else
                         mvbVO[i]=true;
+                }
+            }
+        }
+
+        for(int i=0;i<NL;i++)
+        {
+            auto pML = pTracker->mCurrentFrame.mvpMapLines[i];
+            if(pML)
+            {
+                if(!pTracker->mCurrentFrame.mvbLineOutlier[i])
+                {
+                    if(pML->Observations()>0)
+                        mvbLineMap[i]=true;
+                    else
+                        mvbLineVO[i]=true;
                 }
             }
         }
