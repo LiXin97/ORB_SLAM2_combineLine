@@ -50,6 +50,10 @@ public:
 
     void static LocalBundleAdjustmentCeres(KeyFrame* pKF, bool *pbStopFlag, Map *pMap);
 
+    static void LocalBundleAdjustmentWithLineCeres( KeyFrame* pKF, bool *pbStopFlag, Map *pMap );
+
+    static void LocalBundleAdjustmentOptiLineCeres( KeyFrame* pKF, bool *pbStopFlag, Map *pMap );
+
     // if bFixScale is true, 6DoF optimization (stereo,rgbd), 7DoF otherwise (mono)
     void static OptimizeEssentialGraph(Map* pMap, KeyFrame* pLoopKF, KeyFrame* pCurKF,
                                        const LoopClosing::KeyFrameAndPose &NonCorrectedSim3,

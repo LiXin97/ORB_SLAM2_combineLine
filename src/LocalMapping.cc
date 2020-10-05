@@ -27,6 +27,8 @@
 #include "xin/MapLine.h"
 #include "Converter.h"
 
+
+
 #include<mutex>
 
 namespace ORB_SLAM2
@@ -87,7 +89,9 @@ void LocalMapping::Run()
                 // Local BA
                 if(mpMap->KeyFramesInMap()>2)
                 {
-                    Optimizer::LocalBundleAdjustmentCeres(mpCurrentKeyFrame,&mbAbortBA, mpMap);
+//                    Optimizer::LocalBundleAdjustmentCeres(mpCurrentKeyFrame,&mbAbortBA, mpMap);
+                    Optimizer::LocalBundleAdjustmentWithLineCeres(mpCurrentKeyFrame,&mbAbortBA, mpMap);
+                    Optimizer::LocalBundleAdjustmentOptiLineCeres(mpCurrentKeyFrame,&mbAbortBA, mpMap);
 //                    Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame,&mbAbortBA, mpMap);
                 }
 
@@ -249,18 +253,18 @@ void LocalMapping::MapLineCulling()
         {
             it_Line = mlpRecentAddedMapLines.erase(it_Line);
         }
-        else if(pML->GetFoundRatio() < .15 ) //TODO xinli check ratio
-        {
-            pML->SetBadFlag();
-            it_Line = mlpRecentAddedMapLines.erase(it_Line);
-        }
-        else if(((int)nCurrentKFid-(int)pML->mnFirstKFid)>=2 && pML->Observations()<=cnThObs)
-        {
-            pML->SetBadFlag();
-            it_Line = mlpRecentAddedMapLines.erase(it_Line);
-        }
-        else if(((int)nCurrentKFid-(int)pML->mnFirstKFid)>=3)
-            it_Line = mlpRecentAddedMapLines.erase(it_Line);
+//        else if(pML->GetFoundRatio() < .15 ) //TODO xinli check ratio
+//        {
+//            pML->SetBadFlag();
+//            it_Line = mlpRecentAddedMapLines.erase(it_Line);
+//        }
+//        else if(((int)nCurrentKFid-(int)pML->mnFirstKFid)>=2 && pML->Observations()<=cnThObs)
+//        {
+//            pML->SetBadFlag();
+//            it_Line = mlpRecentAddedMapLines.erase(it_Line);
+//        }
+//        else if(((int)nCurrentKFid-(int)pML->mnFirstKFid)>=3)
+//            it_Line = mlpRecentAddedMapLines.erase(it_Line);
         else
         {
             it_Line++;
@@ -436,13 +440,43 @@ void LocalMapping::CreateNewMapLines()
 
             auto plcker = Plucker( p0, p1 );
 
+//            std::cout <<"-=-=-=-=-=-=-=-==========="<<std::endl;
+//            {
+//                auto norm_c = plcker.GetNorm();
+//                double l_norm = norm_c(0) * norm_c(0) + norm_c(1) * norm_c(1);
+//                double l_sqrtnorm = sqrt( l_norm );
+//                double e1 = startP0(0) * norm_c(0) + startP0(1) * norm_c(1) + norm_c(2);
+//                double e2 = endP0(0) * norm_c(0) + endP0(1) * norm_c(1) + norm_c(2);
+//                e1 /= l_sqrtnorm;
+//                e2 /= l_sqrtnorm;
+//
+//                e1 *= ORB_SLAM2::Frame::fx;
+//                e2 *= ORB_SLAM2::Frame::fx;
+//                std::cout << "e1 = " << e1 << std::endl;
+//                std::cout << "e2 = " << e2 << std::endl;
+//            }
+
             auto [starP3d0, endP3d0] = plcker.Get3D( startP0, endP0 );
-
             plcker.plk_transform( Rwc0, twc0 );
-
             Eigen::Vector3d tc1w = -Rc1w * twc1;
             auto plucker_cam1 = plcker.Get_plk_transform( Rc1w, tc1w );
             auto [starP3d1, endP3d1] = plucker_cam1.Get3D( startP1, endP1 );
+
+//            {
+//                auto norm_c = plucker_cam1.GetNorm();
+//                double l_norm = norm_c(0) * norm_c(0) + norm_c(1) * norm_c(1);
+//                double l_sqrtnorm = sqrt( l_norm );
+//                double e1 = startP1(0) * norm_c(0) + startP1(1) * norm_c(1) + norm_c(2);
+//                double e2 = endP1(0) * norm_c(0) + endP1(1) * norm_c(1) + norm_c(2);
+//                e1 /= l_sqrtnorm;
+//                e2 /= l_sqrtnorm;
+//
+//                e1 *= ORB_SLAM2::Frame::fx;
+//                e2 *= ORB_SLAM2::Frame::fx;
+//                std::cout << "e1 = " << e1 << std::endl;
+//                std::cout << "e2 = " << e2 << std::endl;
+//            }
+//            std::cout <<"-=-=-=-=-=-=-=-==========="<<std::endl;
 
             double len0 = (starP3d0 - endP3d0).norm();
             double len1 = (starP3d1 - endP3d1).norm();
@@ -739,9 +773,8 @@ void LocalMapping::SearchInNeighbors()
         nn=20;
     const vector<KeyFrame*> vpNeighKFs = mpCurrentKeyFrame->GetBestCovisibilityKeyFrames(nn);
     vector<KeyFrame*> vpTargetKFs;
-    for(vector<KeyFrame*>::const_iterator vit=vpNeighKFs.begin(), vend=vpNeighKFs.end(); vit!=vend; vit++)
+    for(auto pKFi : vpNeighKFs)
     {
-        KeyFrame* pKFi = *vit;
         if(pKFi->isBad() || pKFi->mnFuseTargetForKF == mpCurrentKeyFrame->mnId)
             continue;
         vpTargetKFs.push_back(pKFi);
@@ -749,9 +782,8 @@ void LocalMapping::SearchInNeighbors()
 
         // Extend to some second neighbors
         const vector<KeyFrame*> vpSecondNeighKFs = pKFi->GetBestCovisibilityKeyFrames(5);
-        for(vector<KeyFrame*>::const_iterator vit2=vpSecondNeighKFs.begin(), vend2=vpSecondNeighKFs.end(); vit2!=vend2; vit2++)
+        for(auto pKFi2 : vpSecondNeighKFs)
         {
-            KeyFrame* pKFi2 = *vit2;
             if(pKFi2->isBad() || pKFi2->mnFuseTargetForKF==mpCurrentKeyFrame->mnId || pKFi2->mnId==mpCurrentKeyFrame->mnId)
                 continue;
             vpTargetKFs.push_back(pKFi2);
@@ -762,10 +794,8 @@ void LocalMapping::SearchInNeighbors()
     // Search matches by projection from current KF in target KFs
     ORBmatcher matcher;
     vector<MapPoint*> vpMapPointMatches = mpCurrentKeyFrame->GetMapPointMatches();
-    for(vector<KeyFrame*>::iterator vit=vpTargetKFs.begin(), vend=vpTargetKFs.end(); vit!=vend; vit++)
+    for(auto pKFi : vpTargetKFs)
     {
-        KeyFrame* pKFi = *vit;
-
         matcher.Fuse(pKFi,vpMapPointMatches);
     }
 
@@ -773,15 +803,12 @@ void LocalMapping::SearchInNeighbors()
     vector<MapPoint*> vpFuseCandidates;
     vpFuseCandidates.reserve(vpTargetKFs.size()*vpMapPointMatches.size());
 
-    for(vector<KeyFrame*>::iterator vitKF=vpTargetKFs.begin(), vendKF=vpTargetKFs.end(); vitKF!=vendKF; vitKF++)
+    for(auto pKFi : vpTargetKFs)
     {
-        KeyFrame* pKFi = *vitKF;
-
         vector<MapPoint*> vpMapPointsKFi = pKFi->GetMapPointMatches();
 
-        for(vector<MapPoint*>::iterator vitMP=vpMapPointsKFi.begin(), vendMP=vpMapPointsKFi.end(); vitMP!=vendMP; vitMP++)
+        for(auto pMP : vpMapPointsKFi)
         {
-            MapPoint* pMP = *vitMP;
             if(!pMP)
                 continue;
             if(pMP->isBad() || pMP->mnFuseCandidateForKF == mpCurrentKeyFrame->mnId)
@@ -796,9 +823,8 @@ void LocalMapping::SearchInNeighbors()
 
     // Update points
     vpMapPointMatches = mpCurrentKeyFrame->GetMapPointMatches();
-    for(size_t i=0, iend=vpMapPointMatches.size(); i<iend; i++)
+    for(auto pMP : vpMapPointMatches)
     {
-        MapPoint* pMP=vpMapPointMatches[i];
         if(pMP)
         {
             if(!pMP->isBad())

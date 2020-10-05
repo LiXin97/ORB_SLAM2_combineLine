@@ -56,6 +56,8 @@ public:
 
     void Release();
 
+    bool isPause();
+
 private:
 
     bool Stop();
@@ -80,6 +82,8 @@ private:
     bool mbStopped;
     bool mbStopRequested;
     std::mutex mMutexStop;
+
+    bool mbpause;
 
 };
 

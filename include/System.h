@@ -123,6 +123,9 @@ public:
     std::vector<MapPoint*> GetTrackedMapPoints();
     std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
 
+
+    bool isPause();
+
 private:
 
     // Input sensor

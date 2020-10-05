@@ -10,6 +10,7 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3 -march=native")
 
+
 # Check C++11 or C++0x support
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" COMPILER_SUPPORTS_CXX17)
@@ -77,8 +78,8 @@ src/xin/Linematrcher.cpp
 include/xin/Linematrcher.h
         include/xin/Ulity.hpp
         include/xin/LineGeometry.hpp
-        src/xin/point_projection_factor.cc
-        src/xin/pose_local_parameterization.cc)
+        src/xin/projection_factor.cc
+        src/xin/local_parameterization.cc src/xin/LineParam.cpp include/xin/LineParam.h)
 
 target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}

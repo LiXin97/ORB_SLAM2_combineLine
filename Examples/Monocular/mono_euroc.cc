@@ -129,6 +129,9 @@ int main(int argc, char **argv)
         if(ttrack<T)
             usleep((T-ttrack)*1e6);
 
+        while( SLAM.isPause() )
+            usleep( .1 * 1e6 );
+
 //        usleep((.02)*1e6);
     }
 

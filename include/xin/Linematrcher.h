@@ -27,7 +27,7 @@ namespace ORB_SLAM2
 
         int SearchByProjection(
                 Frame &F, const std::vector<MapLine*>& vpLocalMapLines
-        );
+        ) const;
 
         int SearchByProjection(
                 Frame &CurrentFrame, const Frame &LastFrame, const float th

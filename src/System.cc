@@ -26,7 +26,7 @@
 #include <pangolin/pangolin.h>
 #include <iomanip>
 #include <unistd.h>
-#include "xin/point_projection_factor.hpp"
+#include "xin/projection_factor.hpp"
 
 namespace ORB_SLAM2
 {
@@ -120,6 +120,11 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     MonoProjection::sqrt_info = Eigen::Matrix2d::Identity();
     MonoProjection::sqrt_info(0,0) = 458.654;
     MonoProjection::sqrt_info(1,1) = 457.296;
+
+
+    MonoLineProjection::sqrt_info = Eigen::Matrix2d::Identity();
+    MonoLineProjection::sqrt_info(0,0) = 458.654;
+    MonoLineProjection::sqrt_info(1,1) = 458.654;
 
 }
 
@@ -497,6 +502,11 @@ vector<cv::KeyPoint> System::GetTrackedKeyPointsUn()
 {
     unique_lock<mutex> lock(mMutexState);
     return mTrackedKeyPointsUn;
+}
+
+bool System::isPause()
+{
+    return mpViewer->isPause();
 }
 
 } //namespace ORB_SLAM

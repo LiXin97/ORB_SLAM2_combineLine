@@ -3,6 +3,7 @@
 //
 
 #include "include/xin/Linematrcher.h"
+#include "xin/projection_factor.hpp"
 
 namespace ORB_SLAM2
 {
@@ -69,7 +70,7 @@ namespace ORB_SLAM2
         return nmatches;
     }
 
-    int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLine *> &vpLocalMapLines)
+    int LineMatcher::SearchByProjection(Frame &F, const std::vector<MapLine *> &vpLocalMapLines) const
     {
         int nmatches = 0;
 
@@ -80,24 +81,58 @@ namespace ORB_SLAM2
 
             const auto MLdescri = pML->GetDescriptor();
 
-            //TODO xinli add
+            const float &fx = ORB_SLAM2::Frame::fx;
+            const float &cx = ORB_SLAM2::Frame::cx;
+            const float &cy = ORB_SLAM2::Frame::cy;
+            const float &invfx = ORB_SLAM2::Frame::invfx;
+            const float &invfy = ORB_SLAM2::Frame::invfy;
+            cv::Mat Tcw_mat = F.mTcw;
+            Eigen::Matrix<double,3,3> Rcw;
+            Rcw << Tcw_mat.at<float>(0,0), Tcw_mat.at<float>(0,1), Tcw_mat.at<float>(0,2),
+                    Tcw_mat.at<float>(1,0), Tcw_mat.at<float>(1,1), Tcw_mat.at<float>(1,2),
+                    Tcw_mat.at<float>(2,0), Tcw_mat.at<float>(2,1), Tcw_mat.at<float>(2,2);
+            Eigen::Matrix<double,3,1> tcw(Tcw_mat.at<float>(0,3), Tcw_mat.at<float>(1,3), Tcw_mat.at<float>(2,3));
+
+            auto plucker = pML->GetPlucker();
+            plucker.plk_transform( Rcw, tcw );
+            auto norm_c = plucker.GetNorm();
+            double l_norm = norm_c(0) * norm_c(0) + norm_c(1) * norm_c(1);
+            double l_sqrtnorm = sqrt( l_norm );
+
             int bestDist=256;
             int bestDist2=256;
             int bestIdx =-1 ;
             for( int i = 0; i<F.NL;++i )
             {
-                const cv::Mat &d = F.mDescriptorLine.row(i);
-                const int dist = ORBmatcher::DescriptorDistance(MLdescri,d);
+                auto line0 = F.mvKeyLinesUn[i];
+                cv::Point2f startPoint = line0.getStartPoint();
+                cv::Point2f endPoint = line0.getEndPoint();
+                Eigen::Vector4d line_ob = Eigen::Vector4d(
+                        (startPoint.x - cx) * invfx,
+                        (startPoint.y - cy) * invfy,
+                        (endPoint.x - cx) * invfx,
+                        (endPoint.y - cy) * invfy);
 
-                if(dist<bestDist)
+                double e1 = line_ob(0) * norm_c(0) + line_ob(1) * norm_c(1) + norm_c(2);
+                double e2 = line_ob(2) * norm_c(0) + line_ob(3) * norm_c(1) + norm_c(2);
+                e1 /= l_sqrtnorm;
+                e2 /= l_sqrtnorm;
+
+                if( e1*fx < 5. && e2*fx < 5. )
                 {
-                    bestDist2=bestDist;
-                    bestDist=dist;
-                    bestIdx=i;
-                }
-                else if(dist<bestDist2)
-                {
-                    bestDist2=dist;
+                    const cv::Mat &d = F.mDescriptorLine.row(i);
+                    const int dist = ORBmatcher::DescriptorDistance(MLdescri,d);
+
+                    if(dist<bestDist)
+                    {
+                        bestDist2=bestDist;
+                        bestDist=dist;
+                        bestIdx=i;
+                    }
+                    else if(dist<bestDist2)
+                    {
+                        bestDist2=dist;
+                    }
                 }
             }
 
@@ -110,12 +145,14 @@ namespace ORB_SLAM2
             }
         }
 
+        std::cout << "LocalMapLine nmatches = " << nmatches << std::endl;
+
         return nmatches;
     }
 
     int LineMatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame, const float th) const
     {
-        int nmatcher = 0;
+        int nmatches = 0;
 
         const cv::Mat cvRcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
         const cv::Mat cvtcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
@@ -145,6 +182,7 @@ namespace ORB_SLAM2
         std::vector< MapLine* > vpMapLine;
         for( int i = 0; i < LastFrame.NL; ++ i )
         {
+            //TODO xinli there are some problems
             auto pML = LastFrame.mvpMapLines[i];
             if( pML )
             {
@@ -184,7 +222,7 @@ namespace ORB_SLAM2
 //        std::cout << "LastFrame.mDescriptorLine = " << LastFrame.mDescriptorLine.rows << std::endl;
         auto descr_cur = CurrentFrame.mDescriptorLine;
 //        std::cout << "descr_last = " << descr_last.rows << std::endl;
-        if( descr_last.empty() || descr_cur.empty() ) return nmatcher;
+        if( descr_last.empty() || descr_cur.empty() ) return nmatches;
 
         vector<vector<cv::DMatch>> lmatches;
         auto bm = cv::line_descriptor::BinaryDescriptorMatcher::createBinaryDescriptorMatcher();
@@ -197,10 +235,12 @@ namespace ORB_SLAM2
             if( lmatche[0].distance < TH_LOW && lmatche[0].distance < lmatche[1].distance * mnnratio  ){
 
                 CurrentFrame.mvpMapLines[ lmatche[0].queryIdx ] = vpMapLine[ lmatche[0].trainIdx ];
-                nmatcher++;
+                nmatches++;
             }
         }
 
-        return nmatcher;
+        std::cout << "LastFrame nmatches = " << nmatches << std::endl;
+
+        return nmatches;
     }
 }

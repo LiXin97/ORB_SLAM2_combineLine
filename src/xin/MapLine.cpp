@@ -6,16 +6,13 @@
 
 namespace ORB_SLAM2
 {
-
     long unsigned int MapLine::nNextId=0;
     mutex MapLine::mGlobalMutex;
-
-
     MapLine::MapLine(const Plucker &plucker, KeyFrame *pRefKF, Map *pMap)
     :plucker_(plucker),
      mnFirstKFid(pRefKF->mnId), mnFirstFrame(pRefKF->mnFrameId), nObs(0),
-     mnTrackReferenceForFrame(0), mnLastFrameSeen(0),
-//     mnBALocalForKF(0), mnFuseCandidateForKF(0), mnLoopPointForKF(0), mnCorrectedByKF(0),
+     mnTrackReferenceForFrame(0), mnLastFrameSeen(0), mnBALocalForKF(0), mnFuseCandidateForKF(0),
+//     mnLoopPointForKF(0), mnCorrectedByKF(0),
 //     mnCorrectedReference(0), mnBAGlobalForKF(0),
      mpRefKF(pRefKF), mnVisible(1), mnFound(1), mbBad(false),
 //     mpReplaced(static_cast<MapPoint*>(NULL)), mfMinDistance(0), mfMaxDistance(0),
@@ -180,6 +177,15 @@ namespace ORB_SLAM2
         return mbBad;
     }
 
+    void MapLine::SetOrth(const Eigen::Vector4d &Orth)
+    {
+        auto [norm, dir] = Plucker::Orth2Plucker(Orth);
+        double dir_n = dir.norm();
+        norm /= dir_n;
+        dir /= dir_n;
+        plucker_ = Plucker( norm, dir );
+    }
+
     bool MapLine::IsInKeyFrame(KeyFrame *pKF)
     {
         unique_lock<mutex> lock(mMutexFeatures);
@@ -280,5 +286,11 @@ namespace ORB_SLAM2
     {
         unique_lock<mutex> lock(mMutexFeatures);
         return nObs;
+    }
+
+    std::map<KeyFrame *, size_t> MapLine::GetObservations()
+    {
+        unique_lock<mutex> lock(mMutexFeatures);
+        return mObservations;
     }
 }

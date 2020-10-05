@@ -88,9 +88,9 @@ protected:
 
     void KeyFrameCulling();
 
-    cv::Mat ComputeF12(KeyFrame* &pKF1, KeyFrame* &pKF2);
+    static cv::Mat ComputeF12(KeyFrame* &pKF1, KeyFrame* &pKF2);
 
-    cv::Mat SkewSymmetricMatrix(const cv::Mat &v);
+    static cv::Mat SkewSymmetricMatrix(const cv::Mat &v);
 
     bool mbMonocular;
 

@@ -1302,6 +1302,7 @@ void Tracking::SearchLocalPoints()
 
 void Tracking::SearchLocalLines()
 {
+    return ;
     // Do not search map lines already matched
     for( auto&pML:mCurrentFrame.mvpMapLines )
     {

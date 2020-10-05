@@ -48,9 +48,8 @@ int ORBmatcher::SearchByProjection(Frame &F, const vector<MapPoint*> &vpMapPoint
 
     const bool bFactor = th!=1.0;
 
-    for(size_t iMP=0; iMP<vpMapPoints.size(); iMP++)
+    for(auto pMP : vpMapPoints)
     {
-        MapPoint* pMP = vpMapPoints[iMP];
         if(!pMP->mbTrackInView)
             continue;
 
