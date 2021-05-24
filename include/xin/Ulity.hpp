@@ -11,6 +11,27 @@
 class Ulity
 {
 public:
+//    static Eigen::Matrix3d skewSymmetric(const Eigen::Vector3d &q)
+//    {
+//        Eigen::Matrix3d ans;
+//        ans << 0., -q(2), q(1),
+//                q(2), 0., -q(0),
+//                -q(1), q(0), 0.;
+//        return ans;
+//    }
+//
+//    static Eigen::Quaterniond deltaQ(const Eigen::Vector3d &theta)
+//    {
+//        Eigen::Quaterniond dq;
+//        Eigen::Vector3d half_theta = theta;
+//        half_theta /= 2.;
+//        dq.w() = 1.;
+//        dq.x() = half_theta.x();
+//        dq.y() = half_theta.y();
+//        dq.z() = half_theta.z();
+//        return dq;
+//    }
+
     template <typename Derived>
     static Eigen::Matrix<typename Derived::Scalar, 3, 3> skewSymmetric(const Eigen::MatrixBase<Derived> &q)
     {

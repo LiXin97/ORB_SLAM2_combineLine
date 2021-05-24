@@ -189,6 +189,7 @@ bool PoseLocalEularParameterization::Plus(const double *x, const double *delta, 
 
     return true;
 }
+
 bool PoseLocalEularParameterization::ComputeJacobian(const double *x, double *jacobian) const
 {
     Eigen::Map<Eigen::Matrix<double, 6, 6, Eigen::RowMajor>> j(jacobian);

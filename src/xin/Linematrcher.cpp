@@ -145,7 +145,7 @@ namespace ORB_SLAM2
             }
         }
 
-        std::cout << "LocalMapLine nmatches = " << nmatches << std::endl;
+//        std::cout << "LocalMapLine nmatches = " << nmatches << std::endl;
 
         return nmatches;
     }
@@ -221,7 +221,7 @@ namespace ORB_SLAM2
 
 //        std::cout << "LastFrame.mDescriptorLine = " << LastFrame.mDescriptorLine.rows << std::endl;
         auto descr_cur = CurrentFrame.mDescriptorLine;
-//        std::cout << "descr_last = " << descr_last.rows << std::endl;
+        std::cout << "descr_last = " << descr_last.rows << std::endl;
         if( descr_last.empty() || descr_cur.empty() ) return nmatches;
 
         vector<vector<cv::DMatch>> lmatches;
@@ -235,6 +235,94 @@ namespace ORB_SLAM2
             if( lmatche[0].distance < TH_LOW && lmatche[0].distance < lmatche[1].distance * mnnratio  ){
 
                 CurrentFrame.mvpMapLines[ lmatche[0].queryIdx ] = vpMapLine[ lmatche[0].trainIdx ];
+                nmatches++;
+            }
+        }
+
+        std::cout << "LastFrame nmatches = " << nmatches << std::endl;
+
+        return nmatches;
+    }
+
+
+    int LineMatcher::SearchByProjection(Frame &CurrentFrame, KeyFrame* RefKeyFrame, const float th) const
+    {
+        int nmatches = 0;
+
+//        std::cout << CurrentFrame.mTcw << std::endl;
+        return nmatches;
+
+        const cv::Mat cvRcw = CurrentFrame.mTcw.rowRange(0,3).colRange(0,3);
+        const cv::Mat cvtcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
+        Eigen::Matrix3d Rcw = Converter::toMatrix3d(cvRcw);
+        Eigen::Vector3d tcw = Converter::toVector3d(cvtcw);
+
+        const float &cx = ORB_SLAM2::Frame::cx;
+        const float &cy = ORB_SLAM2::Frame::cy;
+        const float &invfx = ORB_SLAM2::Frame::invfx;
+        const float &invfy = ORB_SLAM2::Frame::invfy;
+        //  a-----b
+        //  |     |
+        //  d-----c
+
+        double minX = ORB_SLAM2::Frame::mnMinX;
+        double minY = ORB_SLAM2::Frame::mnMinY;
+        double maxX = ORB_SLAM2::Frame::mnMaxX;
+        double maxY = ORB_SLAM2::Frame::mnMaxY;
+
+        Eigen::Vector3d corna( (minX-cx) * invfx, (minY-cy) * invfy, 1. );
+        Eigen::Vector3d cornb( (maxX-cx) * invfx, (minY-cy) * invfy, 1. );
+        Eigen::Vector3d cornc( (maxX-cx) * invfx, (maxY-cy) * invfy, 1. );
+        Eigen::Vector3d cornd( (minX-cx) * invfx, (maxY-cy) * invfy, 1. );
+
+
+        cv::Mat descr_last;
+        const vector<MapLine*> vpMapLinesKF = RefKeyFrame->GetMapLineMatches();
+        for(auto map_line : vpMapLinesKF)
+        {
+            auto plucker = map_line->GetPlucker();
+            plucker.plk_transform( Rcw, tcw );
+            auto nc = plucker.GetNorm();
+
+            double error_a = nc.dot( corna );
+            double error_b = nc.dot( cornb );
+            double error_c = nc.dot( cornc );
+            double error_d = nc.dot( cornd );
+
+
+            std::cout << "error_a = " << error_a << std::endl;
+            std::cout << "error_b = " << error_b << std::endl;
+            std::cout << "error_c = " << error_c << std::endl;
+            std::cout << "error_d = " << error_d << std::endl;
+            if( error_a > 0 && error_b > 0 && error_c > 0 && error_d > 0 )
+                continue;
+            if( error_a < 0 && error_b < 0 && error_c < 0 && error_d < 0 )
+                continue;
+
+            descr_last.push_back( map_line->GetDescriptor() );
+
+//            ori_idex.push_back(i);
+        }
+
+
+//        std::cout << "LastFrame.mDescriptorLine = " << LastFrame.mDescriptorLine.rows << std::endl;
+        auto descr_cur = CurrentFrame.mDescriptorLine;
+        std::cout << "descr_last = " << descr_last.rows << std::endl;
+        if( descr_last.empty() || descr_cur.empty() ) return nmatches;
+
+        return 0;
+
+        vector<vector<cv::DMatch>> lmatches;
+        auto bm = cv::line_descriptor::BinaryDescriptorMatcher::createBinaryDescriptorMatcher();
+        bm->knnMatch(descr_cur, descr_last, lmatches, 2);
+
+        /* select best matches */
+        std::vector<cv::DMatch> good_matches;
+        for (auto & lmatche : lmatches)
+        {
+            if( lmatche[0].distance < TH_LOW && lmatche[0].distance < lmatche[1].distance * mnnratio  ){
+
+//                CurrentFrame.mvpMapLines[ lmatche[0].queryIdx ] = vpMapLine[ lmatche[0].trainIdx ];
                 nmatches++;
             }
         }

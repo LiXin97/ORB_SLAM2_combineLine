@@ -817,6 +817,16 @@ bool Tracking::TrackReferenceKeyFrame()
     if(nmatches<15)
         return false;
 
+    int nlmatches;
+    {
+        LineMatcher linematch( .85, true );
+        float th = 20;
+        nlmatches = linematch.SearchByProjection( mCurrentFrame, mpReferenceKF, th );
+
+        std::cout << "mLastFrame line num = " << mLastFrame.NL << std::endl;
+        std::cout << "TrackReferenceKeyFrame nlmatches = " << nlmatches << std::endl;
+    }
+
     mCurrentFrame.mvpMapPoints = vpMapPointMatches;
     mCurrentFrame.SetPose(mLastFrame.mTcw);
 
@@ -950,14 +960,15 @@ bool Tracking::TrackWithMotionModel()
             return false;
     }
 
-    int nlmatches;
-    {
-        LineMatcher linematch( .85, true );
-        float th = 20;
-        nlmatches = linematch.SearchByProjection( mCurrentFrame, mLastFrame, th );
-
-//        std::cout << "nlmatches = " << nlmatches << std::endl;
-    }
+    int nlmatches = 0;
+//    {
+//        LineMatcher linematch( .85, true );
+//        float th = 20;
+//        nlmatches = linematch.SearchByProjection( mCurrentFrame, mLastFrame, th );
+//
+//        std::cout << "mLastFrame line num = " << mLastFrame.NL << std::endl;
+//        std::cout << "TrackWithMotionModel nlmatches = " << nlmatches << std::endl;
+//    }
 
     // Optimize frame pose with all matches
 //    Optimizer::PoseOptimization(&mCurrentFrame);
@@ -984,7 +995,7 @@ bool Tracking::TrackWithMotionModel()
         }
     }
 
-    int nlmatchesMap;
+    int nlmatchesMap = 0;
     for(int i =0; i<mCurrentFrame.NL; i++)
     {
         if(mCurrentFrame.mvpMapLines[i])
@@ -1302,7 +1313,6 @@ void Tracking::SearchLocalPoints()
 
 void Tracking::SearchLocalLines()
 {
-    return ;
     // Do not search map lines already matched
     for( auto&pML:mCurrentFrame.mvpMapLines )
     {
@@ -1331,10 +1341,10 @@ void Tracking::SearchLocalLines()
         }
     }
 
+//    std::cout << "SearchLocalLines nToMatch = " << nToMatch << std::endl;
     if( nToMatch > 0 )
     {
-//        std::cout << nToMatch << std::endl;
-        LineMatcher lmatcher(.75);
+        LineMatcher lmatcher(.5);
         int suc = lmatcher.SearchByProjection(mCurrentFrame, mvpLocalMapLines);
 
 //        std::cout << "suc match local map line = " << suc << std::endl;

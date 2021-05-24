@@ -17,7 +17,7 @@ namespace ORB_SLAM2
         Eigen::Vector3d u1 = norm/norm.norm();
         Eigen::Vector3d u2 = dirction/dirction.norm();
         Eigen::Vector3d u3 = u1.cross(u2);
-        Eigen::Vector2d w( norm.norm(), norm.norm() );
+        Eigen::Vector2d w( norm.norm(), dirction.norm() );
         w = w/w.norm();
         return Eigen::Vector4d(
                 atan2( u2(2),u3(2) ),

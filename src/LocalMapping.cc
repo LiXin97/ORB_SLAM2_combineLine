@@ -26,7 +26,7 @@
 
 #include "xin/MapLine.h"
 #include "Converter.h"
-
+#include "xin/projection_factor.hpp"
 
 
 #include<mutex>
@@ -34,7 +34,7 @@
 namespace ORB_SLAM2
 {
 
-#define MinLineTriTheta 5.
+#define MinLineTriTheta 3
 
 LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
@@ -91,7 +91,7 @@ void LocalMapping::Run()
                 {
 //                    Optimizer::LocalBundleAdjustmentCeres(mpCurrentKeyFrame,&mbAbortBA, mpMap);
                     Optimizer::LocalBundleAdjustmentWithLineCeres(mpCurrentKeyFrame,&mbAbortBA, mpMap);
-                    Optimizer::LocalBundleAdjustmentOptiLineCeres(mpCurrentKeyFrame,&mbAbortBA, mpMap);
+//                    Optimizer::LocalBundleAdjustmentOptiLineCeres(mpCurrentKeyFrame,&mbAbortBA, mpMap);
 //                    Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame,&mbAbortBA, mpMap);
                 }
 
@@ -503,6 +503,63 @@ void LocalMapping::CreateNewMapLines()
                 pML->AddObservation(mpCurrentKeyFrame, index0);
                 pML->AddObservation(pKF2, index1);
                 pML->Update3D();
+
+                /*{
+                    const float &cx = ORB_SLAM2::Frame::cx;
+                    const float &cy = ORB_SLAM2::Frame::cy;
+                    const float &invfx = ORB_SLAM2::Frame::invfx;
+                    const float &invfy = ORB_SLAM2::Frame::invfy;
+
+                    auto [n_w, d_w] = plcker.Get_nd();
+                    Eigen::Vector4d orth = pML->GetPlucker().GetOrth();
+                    auto [ n_rec, d_rec ] = Plucker::Orth2Plucker(orth);
+                    n_rec /= d_rec.norm();
+                    d_rec /= d_rec.norm();
+
+                    auto plucker_rec = Plucker(n_rec, d_rec);
+
+                    std::cout << "n_w = " << n_w.transpose() << std::endl;
+                    std::cout << "d_w = " << d_w.transpose() << std::endl;
+                    std::cout << "distance = " << n_w.norm()/d_w.norm() << std::endl;
+                    std::cout << "n_rec = " << n_rec.transpose() << std::endl;
+                    std::cout << "d_rec = " << d_rec.transpose() << std::endl;
+                    std::cout << "distance_rec = " << n_rec.norm()/d_rec.norm() << std::endl;
+
+                    auto observations = pML->GetObservations();
+                    for( auto&observation:observations )
+                    {
+                        auto pKF = observation.first;
+
+                        cv::Mat Tcw_mat = pKF->GetPose();
+
+                        Eigen::Matrix<double,3,3> Rcw;
+                        Rcw << Tcw_mat.at<float>(0,0), Tcw_mat.at<float>(0,1), Tcw_mat.at<float>(0,2),
+                                Tcw_mat.at<float>(1,0), Tcw_mat.at<float>(1,1), Tcw_mat.at<float>(1,2),
+                                Tcw_mat.at<float>(2,0), Tcw_mat.at<float>(2,1), Tcw_mat.at<float>(2,2);
+                        Eigen::Matrix<double,3,1> tcw(Tcw_mat.at<float>(0,3), Tcw_mat.at<float>(1,3), Tcw_mat.at<float>(2,3));
+                        Eigen::Quaterniond Qcw(Rcw);
+
+                        auto line0 = pKF->mvKeyLinesUn[observation.second];
+                        cv::Point2f startPoint = line0.getStartPoint();
+                        cv::Point2f endPoint = line0.getEndPoint();
+                        Eigen::Vector4d line_ob = Eigen::Vector4d(
+                                (startPoint.x - cx) * invfx,
+                                (startPoint.y - cy) * invfy,
+                                (endPoint.x - cx) * invfx,
+                                (endPoint.y - cy) * invfy);
+                        {
+                            bool flag = false;
+                            Eigen::Vector2d error = MonoLineProjection::compute_error( Rcw, tcw, orth, line_ob, flag );
+                            std::cout << "line tri error = " << error.transpose() << std::endl;
+                        }
+                        {
+                            bool flag = false;
+                            Eigen::Vector2d error = MonoLineProjection::compute_error( Rcw, tcw, plucker_rec, line_ob, flag );
+                            std::cout << "line tri error = " << error.transpose() << std::endl;
+                        }
+                    }
+
+                }*/
 
                 mpCurrentKeyFrame->AddMapLine(pML, index0);
                 pKF2->AddMapLine(pML, index1);

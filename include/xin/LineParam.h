@@ -24,6 +24,8 @@ namespace ORB_SLAM2
         explicit Plucker( const Eigen::Vector4d& orth )
         {
             auto [norm, dir] = Orth2Plucker(orth);
+//            norm_ = norm;
+//            dirction_ = dir;
             new (this)Plucker( norm, dir );
         }
         Plucker() = default;
@@ -48,8 +50,8 @@ namespace ORB_SLAM2
             return Plucker( norm, dirction );
         }
 
-        std::tuple<Eigen::Vector3d, Eigen::Vector3d>
-        Get_nd_transform( const Eigen::Matrix3d& Rno, const Eigen::Vector3d& tno ) {
+        [[nodiscard]] std::tuple<Eigen::Vector3d, Eigen::Vector3d>
+        Get_nd_transform( const Eigen::Matrix3d& Rno, const Eigen::Vector3d& tno ) const {
             Eigen::Vector3d norm = Rno * norm_ + Ulity::skewSymmetric(tno) * Rno * dirction_;
             Eigen::Vector3d dirction = Rno * dirction_;
             return std::make_tuple( norm, dirction );
@@ -65,7 +67,7 @@ namespace ORB_SLAM2
                const Eigen::Vector3d& ob0,
                const Eigen::Vector3d& ob1);
 
-        std::tuple<Eigen::Vector3d, Eigen::Vector3d>
+        [[nodiscard]] std::tuple<Eigen::Vector3d, Eigen::Vector3d>
         Get_nd(  ) {
             return std::make_tuple( norm_, dirction_ );
         }

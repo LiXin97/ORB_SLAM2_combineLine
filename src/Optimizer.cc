@@ -535,7 +535,7 @@ int Optimizer::PoseOptimizationCeres(Frame *pFrame)
                 Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
 
 
-                auto loss_function = new ceres::HuberLoss(chi2Mono[it]);
+                auto loss_function = new ceres::CauchyLoss(std::sqrt(chi2Mono[it]));
                 auto cost_function = new MonoProjection( obs_point );
                 problem.AddResidualBlock(cost_function, loss_function, para_Pose, para_PointFeature[index_point]);
                 factor_num++;
@@ -1246,6 +1246,7 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
 
 void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFlag, Map *pMap)
 {
+    bool without_line = false;
     //TODO xinli opti 2 times
     for( int it= 0; it< 1; ++it )
     {
@@ -1279,6 +1280,7 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                         }
             }
             auto vpMLs = lLocalKeyFrame->GetMapLineMatches();
+            if(!without_line)
             for( auto& pML:vpMLs )
             {
                 if( pML )
@@ -1313,6 +1315,7 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
             }
         }
 
+        if(!without_line)
         for( auto& lLocalMapLine:lLocalMapLines )
         {
             auto observations = lLocalMapLine->GetObservations();
@@ -1439,6 +1442,7 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
         {
             index_point++;
             const map<KeyFrame*,size_t> observations = mapPoint->GetObservations();
+//            if( observations.size() <= 2 ) continue;
             for( auto&observ:observations )
             {
                 auto pKFi = observ.first;
@@ -1460,7 +1464,7 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
 
 
                         size_t kf_index = kFid_id[ pKFi->mnId ];
-                        auto loss_function = new ceres::CauchyLoss( 5.991 );
+                        auto loss_function = new ceres::HuberLoss( std::sqrt(5.991) );
                         auto cost_function = new MonoProjection( obs_point );
                         problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_point[index_point]);
                         factor_num++;
@@ -1479,7 +1483,7 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
         {
             index_line++;
             auto observations = lLocalMapLine->GetObservations();
-            if( observations.size() < 3 ) continue;
+//            if( observations.size() <= 2 ) continue;
             for( auto&observation:observations )
             {
                 auto pKFi = observation.first;
@@ -1506,7 +1510,7 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                         (endPoint.y - cy) * invfy);
 
                 size_t kf_index = kFid_id[ pKFi->mnId ];
-                auto loss_function = new ceres::CauchyLoss( 5.991 );
+                auto loss_function = new ceres::HuberLoss( std::sqrt(3.991) );
                 auto cost_function = new MonoLineProjection( line_ob );
                 problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_line[index_line]);
 
@@ -1519,10 +1523,10 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
 //        std::cout << "factor_line_num = " << factor_line_num << std::endl;
 
         ceres::Solver::Options options;
-        options.linear_solver_type = ceres::SPARSE_SCHUR;
+        options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;//SPARSE_SCHUR;
         options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;  // LEVENBERG_MARQUARDT  DOGLEG
         //    options.linear_solver_type = ceres::SPARSE_SCHUR; // SPARSE_NORMAL_CHOLESKY  or DENSE_SCHUR
-        options.max_num_iterations = 10;
+        options.max_num_iterations = 20;
         options.minimizer_progress_to_stdout = false;
 
         //        TicToc solver_time;
@@ -1531,21 +1535,22 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
 
         double InitialRMSE = std::sqrt( summary.initial_cost / summary.num_residuals);
         double FinalRMSE = std::sqrt( summary.final_cost / summary.num_residuals);
-//        std::cout << std::endl
-//                  << "LocalBundleAdjustment statistics (approximated RMSE):\n"
-//                  << " #3D Points: " << index_point+1 << "\n"
-//                  << " #3D Lines: " << index_line+1 << "\n"
-//                  << " #Cameras: " << kFid_id.size() << "\n"
-//                  << " #Line_factor_num: " << factor_line_num << std::endl
-//                  << " #Point_factor_num: " << factor_point_num << std::endl
-//                  << " #residuals: " << summary.num_residuals << "\n"
-//                  << " Initial RMSE: " << InitialRMSE << "\n"
-//                  << " Final RMSE: " << FinalRMSE << "\n"
-//                  << " Time (s): " << summary.total_time_in_seconds << "\n"
-//                  << std::endl;
+
+        std::cout << std::endl
+                  << "LocalBundleAdjustment statistics (approximated RMSE):\n"
+                  << " #3D Points: " << index_point+1 << "\n"
+                  << " #3D Lines: " << index_line+1 << "\n"
+                  << " #Cameras: " << kFid_id.size() << "\n"
+                  << " #Line_factor_num: " << factor_line_num << std::endl
+                  << " #Point_factor_num: " << factor_point_num << std::endl
+                  << " #residuals: " << summary.num_residuals << "\n"
+                  << " Initial RMSE: " << InitialRMSE << "\n"
+                  << " Final RMSE: " << FinalRMSE << "\n"
+                  << " Time (s): " << summary.total_time_in_seconds << "\n"
+                  << std::endl;
 
         vector<pair<KeyFrame*,MapPoint*> > vToErase;
-        vToErase.reserve(factor_num);
+        vToErase.reserve(factor_point_num);
 
         // Check inlier observations
         index_point = -1;
@@ -1572,7 +1577,7 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                         size_t kf_index = kFid_id[ pKFi->mnId ];
                         Eigen::Vector2d error = MonoProjection::compute_error( para_Pose[kf_index], para_Feature_point[index_point], obs_point, bad_point );
                         double error_norm = error.norm();
-                        if( error_norm > 5.991 || bad_point )
+                        if( error_norm > std::sqrt(5.991) || bad_point )
                         {
                             vToErase.emplace_back(pKFi,mapPoint);
                             erase_point_factor_num++;
@@ -1587,10 +1592,13 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
         }
 //        std::cout << "erase_point_factor_num = " << erase_point_factor_num << std::endl;
 
+        vector<pair<KeyFrame*,MapLine*> > vToErase_line;
+        vToErase_line.reserve(factor_line_num);
+
         index_line = -1;
         for( auto& lLocalMapLine:lLocalMapLines )
         {
-            break; // TODO xinli
+//            break; // TODO xinli
             index_line++;
             auto observations = lLocalMapLine->GetObservations();
             for( auto&observation:observations )
@@ -1611,7 +1619,14 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                         (endPoint.y - cy) * invfy);
 
                 size_t kf_index = kFid_id[ pKFi->mnId ];
-
+                bool bad_line = false;
+                Eigen::Vector2d error = MonoLineProjection::compute_error( para_Pose[kf_index], para_Feature_line[index_line], line_ob, bad_line );
+                double error_norm = error.norm();
+                if( error_norm > std::sqrt(5.991) || bad_line )
+                {
+                    vToErase_line.emplace_back(pKFi,lLocalMapLine);
+                    erase_point_factor_num++;
+                }
             }
         }
 
@@ -1626,6 +1641,17 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                 MapPoint* pMPi = i.second;
                 pKFi->EraseMapPointMatch(pMPi);
                 pMPi->EraseObservation(pKFi);
+            }
+        }
+
+        if(!vToErase_line.empty())
+        {
+            for(auto & i : vToErase_line)
+            {
+                KeyFrame* pKFi = i.first;
+                MapLine* pMLi = i.second;
+                pKFi->EraseMapLineMatch(pMLi);
+                pMLi->EraseObservation(pKFi);
             }
         }
 
@@ -1654,11 +1680,22 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
             pMP->SetWorldPos(Converter::toCvMat(point_estiate));
             pMP->UpdateNormalAndDepth();
         }
+
+        // Lines
+        index_line = -1;
+        for( auto&mapLine:lLocalMapLines )
+        {
+            index_line++;
+            Eigen::Vector4d orth( para_Feature_line[index_line][0], para_Feature_line[index_line][1], para_Feature_line[index_line][2], para_Feature_line[index_line][3] );
+            mapLine->SetOrth( orth );
+            mapLine->Update3D();
+        }
     }
 }
 
 void Optimizer::LocalBundleAdjustmentOptiLineCeres(KeyFrame *pKF, bool *pbStopFlag, Map *pMap)
 {
+//    return;
     //TODO xinli opti 2 times
     for( int it= 0; it< 1; ++it )
     {
@@ -1696,13 +1733,6 @@ void Optimizer::LocalBundleAdjustmentOptiLineCeres(KeyFrame *pKF, bool *pbStopFl
             }
         }
 
-        // TODO xinli xinli xinli
-        for( auto&mapLine:lLocalMapLines )
-        {
-            mapLine->Update3D();
-        }
-        return ;
-
         // Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
         list<KeyFrame*> lFixedCameras;
         for( auto& lLocalMapLine:lLocalMapLines )
@@ -1718,6 +1748,11 @@ void Optimizer::LocalBundleAdjustmentOptiLineCeres(KeyFrame *pKF, bool *pbStopFl
                 }
             }
         }
+        if( lLocalMapLines.empty() ) continue;
+
+//        std::cout << "lLocalMapLines.size() = " << lLocalMapLines.size() << std::endl
+//        << "lLocalKeyFrames.size() = " << lLocalKeyFrames.size() << std::endl
+//        << "lFixedCameras.size() = " << lFixedCameras.size() << std::endl;
 
 
         ceres::Problem problem;
@@ -1768,7 +1803,7 @@ void Optimizer::LocalBundleAdjustmentOptiLineCeres(KeyFrame *pKF, bool *pbStopFl
 
             ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
             problem.AddParameterBlock(para_Pose[index_kf], 7, local_parameterization);
-            problem.SetParameterBlockConstant( para_Pose[index_kf] );
+//            problem.SetParameterBlockConstant( para_Pose[index_kf] );
         }
         for( auto &kf:lFixedCameras )
         {
@@ -1831,7 +1866,7 @@ void Optimizer::LocalBundleAdjustmentOptiLineCeres(KeyFrame *pKF, bool *pbStopFl
                         (endPoint.y - cy) * invfy);
 
                 size_t kf_index = kFid_id[ pKFi->mnId ];
-                auto loss_function = new ceres::CauchyLoss( 5.991 );
+                auto loss_function = new ceres::CauchyLoss( std::sqrt(5.991) );
                 auto cost_function = new MonoLineProjection( line_ob );
                 problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_line[index_line]);
                 factor_line_num ++;
@@ -1843,7 +1878,7 @@ void Optimizer::LocalBundleAdjustmentOptiLineCeres(KeyFrame *pKF, bool *pbStopFl
         options.linear_solver_type = ceres::SPARSE_SCHUR;
         options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;  // LEVENBERG_MARQUARDT  DOGLEG
         //    options.linear_solver_type = ceres::SPARSE_SCHUR; // SPARSE_NORMAL_CHOLESKY  or DENSE_SCHUR
-        options.max_num_iterations = 10;
+        options.max_num_iterations = 20;
         options.minimizer_progress_to_stdout = false;
 
         //        TicToc solver_time;
@@ -1874,6 +1909,23 @@ void Optimizer::LocalBundleAdjustmentOptiLineCeres(KeyFrame *pKF, bool *pbStopFl
             mapLine->SetOrth( orth );
             mapLine->Update3D();
         }
+
+        //Update camera pose
+        {
+            int indexKf = 0;
+            for( auto &kf:lLocalKeyFrames )
+            {
+                int i = indexKf;
+                Eigen::Vector3d tcw(para_Pose[i][0], para_Pose[i][1], para_Pose[i][2]);
+                Eigen::Quaterniond qcw(para_Pose[i][6], para_Pose[i][3], para_Pose[i][4], para_Pose[i][5]);
+                Eigen::Matrix4d Tcw = Eigen::Matrix4d::Identity();
+                Tcw.block(0, 0, 3, 3) = qcw.toRotationMatrix();
+                Tcw.block(0, 3, 3, 1) = tcw;
+                kf->SetPose(Converter::toCvMat( Tcw ));
+                indexKf++;
+            }
+        }
+
     }
 }
 

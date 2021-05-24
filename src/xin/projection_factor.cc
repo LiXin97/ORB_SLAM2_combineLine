@@ -88,6 +88,60 @@ Eigen::Vector2d MonoLineProjection::compute_error(const Eigen::Matrix3d &Rcw, co
                                                   bool &bad_line)
 {
     auto plucker = ORB_SLAM2::Plucker(Orth);
+
+    // TODO xinli xinli xinli    why different???????????????????????????????????????????????????????????
+    auto [norm_c, dir_c] = plucker.Get_nd_transform(Rcw, tcw);
+
+//    auto [norm_w, dir_w] = plucker.Get_nd();
+//    auto norm_c = Rcw * norm_w + Ulity::skewSymmetric(tcw) * Rcw * dir_w;
+//    auto dir_c = Rcw * dir_w;
+
+//    auto [ norm_w, dir_w ] = ORB_SLAM2::Plucker::Orth2Plucker( Orth );
+//        std::cout << "compute_error norm_w = " << norm_w.transpose() << std::endl;
+//        std::cout << "compute_error dir_w = " << dir_w.transpose() << std::endl;
+//    auto norm_c = Rcw * norm_w + Ulity::skewSymmetric(tcw) * Rcw * dir_w;
+//    auto dir_c = Rcw * dir_w;
+
+//    auto [n_c, d_c] = plucker.Get_nd_transform(Rcw, tcw);
+
+
+//    Eigen::Vector3d norm_w, dirc_w;
+//    std::tie( norm_w, dirc_w ) = plucker.Get_nd();
+//
+////    auto [norm_w, dirc_w] = plucker.Get_nd();
+//    //TODO xinli xinli xinli why different???????????????????????????????????????
+//    auto norm_c_c = (Rcw * norm_w + Ulity::skewSymmetric(tcw) * Rcw * dirc_w);
+//    auto dir_c_c = Rcw * dirc_w;
+//    {
+//        std::cout <<"=================="<<std::endl;
+//        auto norm = Rcw * norm_w + Ulity::skewSymmetric(tcw) * Rcw * dirc_w;
+//        auto dirction = Rcw * dirc_w;
+//        std::cout << "norm = " << norm.transpose() << std::endl;
+//        std::cout << "dirction = " << dirction.transpose() << std::endl;
+//    }
+////    plucker.plk_transform( Rcw, tcw );
+////    auto [norm_c, dir_c] = plucker.Get_nd();
+//    std::cout << "n_c = " << n_c.transpose() << std::endl;
+//    std::cout << "d_c = " << d_c.transpose() << std::endl;
+//    std::cout << "norm_c_c = " << norm_c_c.transpose() << std::endl;
+//    std::cout << "dir_c_c = " << dir_c_c.transpose() << std::endl;
+//    std::cout <<"=================="<<std::endl;
+//    auto norm_c = plucker.GetNorm();
+
+
+
+    double l_norm = norm_c(0) * norm_c(0) + norm_c(1) * norm_c(1);
+    double l_sqrtnorm = sqrt( l_norm );
+
+    double e1 = obs(0) * norm_c(0) + obs(1) * norm_c(1) + norm_c(2);
+    double e2 = obs(2) * norm_c(0) + obs(3) * norm_c(1) + norm_c(2);
+    return sqrt_info * Eigen::Vector2d( e1/l_sqrtnorm, e2/l_sqrtnorm );
+}
+
+Eigen::Vector2d MonoLineProjection::compute_error(const Eigen::Matrix3d &Rcw, const Eigen::Vector3d &tcw,
+                                                  const ORB_SLAM2::Plucker &plucker, const Eigen::Vector4d &obs,
+                                                  bool &bad_line)
+{
     auto [n_c, d_c] = plucker.Get_nd_transform(Rcw, tcw);
 
 
@@ -157,8 +211,9 @@ bool MonoLineProjection::Evaluate(const double *const *parameters, double *resid
     if (jacobians)
     {
         Eigen::Matrix<double, 2, 3> jaco_e_l(2, 3);
-        jaco_e_l << (line_obs_(0)/l_sqrtnorm - norm_c(0) * e1 / l_trinorm ), (line_obs_(1)/l_sqrtnorm - norm_c(1) * e1 / l_trinorm ), 1.0/l_sqrtnorm,
-                (line_obs_(2)/l_sqrtnorm - norm_c(0) * e2 / l_trinorm ), (line_obs_(3)/l_sqrtnorm - norm_c(1) * e2 / l_trinorm ), 1.0/l_sqrtnorm;
+        jaco_e_l <<
+        (line_obs_(0)/l_sqrtnorm - norm_c(0) * e1 / l_trinorm ), (line_obs_(1)/l_sqrtnorm - norm_c(1) * e1 / l_trinorm ), 1.0/l_sqrtnorm,
+        (line_obs_(2)/l_sqrtnorm - norm_c(0) * e2 / l_trinorm ), (line_obs_(3)/l_sqrtnorm - norm_c(1) * e2 / l_trinorm ), 1.0/l_sqrtnorm;
         jaco_e_l = sqrt_info * jaco_e_l;
         Eigen::Matrix<double, 3, 6> jaco_l_Lc(3, 6);
         jaco_l_Lc.setZero();
@@ -214,7 +269,7 @@ bool MonoLineProjection::Evaluate(const double *const *parameters, double *resid
             jacobian_Orth = jaco_e_Lc * jacobian_Lc_Lw * jacobian_Lw_Orth;
         }
 
-        if (jacobians && jacobians[0] && jacobians[1])
+        if (true)
         {
             // check jacobian
 //            std::cout << "ana = " << std::endl;

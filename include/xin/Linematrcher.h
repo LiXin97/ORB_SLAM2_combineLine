@@ -33,6 +33,11 @@ namespace ORB_SLAM2
                 Frame &CurrentFrame, const Frame &LastFrame, const float th
                 ) const;
 
+
+        int SearchByProjection(
+                Frame &CurrentFrame, KeyFrame *RefKeyFrame, const float th
+        ) const;
+
         static const int TH_LOW;
         static const int TH_HIGH;
 
