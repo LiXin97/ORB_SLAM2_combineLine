@@ -52,6 +52,7 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
 
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
     Optimizer::without_line = (int(fSettings["LineOptimization"]) == 0);
+    Frame::LineExtract_ = (int(fSettings["LineExtractor"])==1);
 
     float fx = fSettings["Camera.fx"];
     float fy = fSettings["Camera.fy"];
@@ -1346,7 +1347,7 @@ void Tracking::SearchLocalLines()
 //    std::cout << "SearchLocalLines nToMatch = " << nToMatch << std::endl;
     if( nToMatch > 0 )
     {
-        LineMatcher lmatcher(.5);
+        LineMatcher lmatcher(.75);
         int suc = lmatcher.SearchByProjection(mCurrentFrame, mvpLocalMapLines);
 
 //        std::cout << "suc match local map line = " << suc << std::endl;

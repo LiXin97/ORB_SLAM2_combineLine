@@ -115,6 +115,8 @@ public:
     cv::Mat UnprojectStereo(const int &i);
 
 public:
+    static bool LineExtract_;
+
     // Vocabulary used for relocalization.
     ORBVocabulary* mpORBvocabulary;
 

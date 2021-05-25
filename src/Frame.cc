@@ -33,6 +33,8 @@ float Frame::cx, Frame::cy, Frame::fx, Frame::fy, Frame::invfx, Frame::invfy;
 float Frame::mnMinX, Frame::mnMinY, Frame::mnMaxX, Frame::mnMaxY;
 float Frame::mfGridElementWidthInv, Frame::mfGridElementHeightInv;
 
+bool Frame::LineExtract_ = true;
+
 Frame::Frame()
 {}
 
@@ -203,10 +205,15 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
 //    ExtractORB(0,imGray);
 
     // extraction point and line
-    thread Point(&Frame::ExtractORB, this, 0, imGray);
-    thread Line(&Frame::ExtractLine, this, imGray);
-    Point.join();
-    Line.join();
+    if(LineExtract_)
+    {
+        thread Point(&Frame::ExtractORB, this, 0, imGray);
+        thread Line(&Frame::ExtractLine, this, imGray);
+        Point.join();
+        Line.join();
+    }
+    else
+        ExtractORB(0, imGray);
 
 //    cv::Mat show = imGray.clone();
 //    if(show.channels() != 3) cv::cvtColor(show, show, cv::COLOR_GRAY2BGR);
@@ -231,11 +238,15 @@ Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extra
     if(mvKeys.empty())
         return;
 
-
-    thread PointUndi(&Frame::UndistortKeyPoints, this);
-    thread LineUndi(&Frame::UndistortKeyLines, this);
-    PointUndi.join();
-    LineUndi.join();
+    if(LineExtract_)
+    {
+        thread PointUndi(&Frame::UndistortKeyPoints, this);
+        thread LineUndi(&Frame::UndistortKeyLines, this);
+        PointUndi.join();
+        LineUndi.join();
+    }
+    else
+        UndistortKeyPoints();
 
 //    std::cout << "mDescriptors.rows = " <<  mDescriptors.rows << std::endl;
 //    std::cout << "mDescriptors.cols = " <<  mDescriptors.cols << std::endl;
