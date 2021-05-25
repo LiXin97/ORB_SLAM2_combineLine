@@ -37,6 +37,8 @@ class LoopClosing;
 class Optimizer
 {
 public:
+    static bool without_line;
+
     void static BundleAdjustment(const std::vector<KeyFrame*> &vpKF, const std::vector<MapPoint*> &vpMP,
                                  int nIterations = 5, bool *pbStopFlag=NULL, const unsigned long nLoopKF=0,
                                  const bool bRobust = true);

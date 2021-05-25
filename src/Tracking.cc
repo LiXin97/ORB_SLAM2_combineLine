@@ -51,6 +51,8 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     // Load camera parameters from settings file
 
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
+    Optimizer::without_line = (int(fSettings["LineOptimization"]) == 0);
+
     float fx = fSettings["Camera.fx"];
     float fy = fSettings["Camera.fy"];
     float cx = fSettings["Camera.cx"];
@@ -1699,9 +1701,9 @@ void Tracking::Reset()
     cout << " done" << endl;
 
     // Reset Loop Closing
-    cout << "Reseting Loop Closing...";
-    mpLoopClosing->RequestReset();
-    cout << " done" << endl;
+//    cout << "Reseting Loop Closing...";
+//    mpLoopClosing->RequestReset();
+//    cout << " done" << endl;
 
     // Clear BoW Database
     cout << "Reseting Database...";

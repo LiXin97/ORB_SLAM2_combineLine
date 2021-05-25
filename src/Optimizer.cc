@@ -40,6 +40,7 @@
 namespace ORB_SLAM2
 {
 
+    bool Optimizer::without_line = false;
 
 void Optimizer::GlobalBundleAdjustemnt(Map* pMap, int nIterations, bool* pbStopFlag, const unsigned long nLoopKF, const bool bRobust)
 {
@@ -1246,7 +1247,7 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
 
 void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFlag, Map *pMap)
 {
-    bool without_line = false;
+//    bool without_line = true;
     //TODO xinli opti 2 times
     for( int it= 0; it< 1; ++it )
     {
