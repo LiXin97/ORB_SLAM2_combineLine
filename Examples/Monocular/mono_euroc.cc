@@ -132,7 +132,7 @@ int main(int argc, char **argv)
         while( SLAM.isPause() )
             usleep( .1 * 1e6 );
 
-//        usleep((.02)*1e6);
+//        usleep((.1)*1e6);
     }
 
     while(true)

@@ -1533,8 +1533,8 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
             options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;//SPARSE_SCHUR;
             options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;  // LEVENBERG_MARQUARDT  DOGLEG
             //    options.linear_solver_type = ceres::SPARSE_SCHUR; // SPARSE_NORMAL_CHOLESKY  or DENSE_SCHUR
-            options.max_num_iterations = 20;
-            options.max_solver_time_in_seconds = 0.1;
+//            options.max_num_iterations = 20;
+            options.max_solver_time_in_seconds = 0.3;
             options.minimizer_progress_to_stdout = false;
 
             //        TicToc solver_time;

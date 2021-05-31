@@ -99,6 +99,7 @@ void MapDrawer::DrawMapLines()
     {
         if(vpML->isBad() || spRefMLs.count(vpML))
             continue;
+//        if(vpML->GetObservations().size() <= 2) continue;
         auto [StartPoint, EndPoint] = vpML->GetStarEndPoints();
         glVertex3f(StartPoint(0), StartPoint(1), StartPoint(2));
         glVertex3f(EndPoint(0), EndPoint(1), EndPoint(2));

@@ -1035,8 +1035,13 @@ bool Tracking::TrackLocalMap()
 //    std::cout << "TrackLocalMap" << std::endl;
     UpdateLocalMap();
 
-    SearchLocalPoints();
-    SearchLocalLines();
+    thread threadPoint(&Tracking::SearchLocalPoints,this);
+    thread threadLine(&Tracking::SearchLocalLines,this);
+    threadPoint.join();
+    threadLine.join();
+
+//    SearchLocalPoints();
+//    SearchLocalLines();
 
     // Optimize Pose
     Optimizer::PoseOptimizationCeres(&mCurrentFrame);

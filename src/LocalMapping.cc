@@ -34,7 +34,7 @@
 namespace ORB_SLAM2
 {
 
-#define MinLineTriTheta 3
+#define MinLineTriTheta 1
 
 LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
@@ -69,12 +69,24 @@ void LocalMapping::Run()
             ProcessNewKeyFrame();
 
             // Check recent MapPoints
-            MapPointCulling();
-            MapLineCulling();
+//            MapPointCulling();
+//            MapLineCulling();
+            {
+                thread threadPoint(&LocalMapping::MapPointCulling,this);
+                thread threadLine(&LocalMapping::MapLineCulling,this);
+                threadPoint.join();
+                threadLine.join();
+            }
 
             // Triangulate new MapPoints
-            CreateNewMapPoints();
-            CreateNewMapLines();
+//            CreateNewMapPoints();
+//            CreateNewMapLines();
+            {
+                thread threadPoint(&LocalMapping::CreateNewMapPoints,this);
+                thread threadLine(&LocalMapping::CreateNewMapLines,this);
+                threadPoint.join();
+                threadLine.join();
+            }
 
             if(!CheckNewKeyFrames())
             {
