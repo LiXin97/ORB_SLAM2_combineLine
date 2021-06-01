@@ -59,27 +59,33 @@
 //};
 
 struct MonoProjectionAuto {
-    MonoProjectionAuto(double observed_x, double observed_y)
-            : observed_x(observed_x), observed_y(observed_y) {}
+    MonoProjectionAuto(double observed_x, double observed_y,
+                       const double fx,
+                       const double fy,
+                       const double cx,
+                       const double cy)
+            : observed_x(observed_x), observed_y(observed_y),
+            fx(fx),fy(fy),cx(cx),cy(cy){}
 
     template <typename T>
-    bool operator()(const T* const Tcw,
+    bool operator()(const T* const Qcw,
+                    const T* const tcw,
                     const T* const point,
                     T* residuals) const {
         // camera[0,1,2] are the angle-axis rotation.
         T p[3];
 
-        ceres::QuaternionRotatePoint(Tcw, point, p);
+        ceres::QuaternionRotatePoint(Qcw, point, p);
 
 //        ceres::AngleAxisRotatePoint(camera, point, p);
         // camera[3,4,5] are the translation.
-        p[0] += Tcw[3]; p[1] += Tcw[4]; p[2] += Tcw[5];
+        p[0] += tcw[0]; p[1] += tcw[1]; p[2] += tcw[2];
 
         // Compute the center of distortion. The sign change comes from
         // the camera model that Noah Snavely's Bundler assumes, whereby
         // the camera coordinate system has a negative z axis.
-        T predicted_x = p[0] / p[2];
-        T predicted_y = p[1] / p[2];
+        T xp = p[0] / p[2];
+        T yp = p[1] / p[2];
 
         // Apply second and fourth order radial distortion.
 //        const T& l1 = camera[7];
@@ -88,9 +94,12 @@ struct MonoProjectionAuto {
 //        T distortion = 1.0 + r2  * (l1 + l2  * r2);
 
         // Compute final projected point position.
-//        const T& focal = camera[6];
-//        T predicted_x = focal * distortion * xp;
-//        T predicted_y = focal * distortion * yp;
+//        const T& fx = camera[0];
+//        const T& fy = camera[1];
+//        const T& cx = camera[2];
+//        const T& cy = camera[3];
+        T predicted_x = T(fx) * xp + T(cx);
+        T predicted_y = T(fy) * yp + T(cy);
 
         // The error is the difference between the predicted and observed position.
         residuals[0] = predicted_x - T(observed_x);
@@ -101,13 +110,19 @@ struct MonoProjectionAuto {
     // Factory to hide the construction of the CostFunction object from
     // the client code.
     static ceres::CostFunction* Create(const double observed_x,
-                                       const double observed_y) {
-        return (new ceres::AutoDiffCostFunction<MonoProjectionAuto, 2, 7, 3>(
-                new MonoProjectionAuto(observed_x, observed_y)));
+                                       const double observed_y,
+                                       const double fx,
+                                       const double fy,
+                                       const double cx,
+                                       const double cy) {
+        return (new ceres::AutoDiffCostFunction<MonoProjectionAuto, 2, 4, 3, 3>(
+                new MonoProjectionAuto(observed_x, observed_y, fx, fy, cx, cy)));
     }
 
     double observed_x;
     double observed_y;
+
+    double fx,fy,cx,cy;
 };
 
 class MonoProjection : public ceres::SizedCostFunction<2, 7, 3>

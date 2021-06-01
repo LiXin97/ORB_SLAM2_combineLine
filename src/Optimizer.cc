@@ -1245,6 +1245,36 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
     }
 }
 
+Eigen::Vector2d compute_error(const double *parameters_pose_Q,
+                              const double *parameters_pose_t,
+                              const double *parameters_point, const Eigen::Vector2d &obs, bool& bad_point)
+{
+    bad_point = false;
+    Eigen::Vector3d tcw(parameters_pose_t[0], parameters_pose_t[1], parameters_pose_t[2]);
+    Eigen::Quaterniond qcw(parameters_pose_Q[0], parameters_pose_Q[1], parameters_pose_Q[2], parameters_pose_Q[3]);
+    Eigen::Vector3d PointW(parameters_point[0], parameters_point[1], parameters_point[2]);
+    Eigen::Vector3d pts_camera = qcw * PointW + tcw;
+    if( pts_camera(2) < 0 ) bad_point = true;
+    return Eigen::Vector2d( pts_camera(0)/pts_camera(2) - obs(0), pts_camera(1)/pts_camera(2) - obs(1) );
+}
+
+Eigen::Vector2d compute_error(const double *parameters_pose_Q,
+                              const double *parameters_pose_t,
+                              const double *parameters_point,
+                              const double obs_x, const double obs_y,
+                              const double fx, const double fy,
+                              const double cx, const double cy, bool& bad_point)
+{
+    bad_point = false;
+    Eigen::Vector3d tcw(parameters_pose_t[0], parameters_pose_t[1], parameters_pose_t[2]);
+    Eigen::Quaterniond qcw(parameters_pose_Q[0], parameters_pose_Q[1], parameters_pose_Q[2], parameters_pose_Q[3]);
+    Eigen::Vector3d PointW(parameters_point[0], parameters_point[1], parameters_point[2]);
+    Eigen::Vector3d pts_camera = qcw * PointW + tcw;
+    if( pts_camera(2) < 0 ) bad_point = true;
+    return Eigen::Vector2d( fx * pts_camera(0)/pts_camera(2) + cx - obs_x,
+                            fy * pts_camera(1)/pts_camera(2) + cy - obs_y );
+}
+
 void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFlag, Map *pMap)
 {
     for( int it= 0; it< 1; ++it )
@@ -1335,7 +1365,8 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
         int factor_line_num = 0;
         double para_Feature_point[lLocalMapPoints.size()][3];
         double para_Feature_line[lLocalMapLines.size()][4];
-        double para_Pose[lLocalKeyFrames.size() + lFixedCameras.size()][7];
+        double para_Pose_Q[lLocalKeyFrames.size() + lFixedCameras.size()][4];
+        double para_Pose_t[lLocalKeyFrames.size() + lFixedCameras.size()][3];
         std::map< size_t, size_t >  kFid_id;
 
         for(int iter = 0; iter<2;++iter)
@@ -1389,16 +1420,28 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                 Eigen::Matrix<double,3,1> tcw(Tcw_mat.at<float>(0,3), Tcw_mat.at<float>(1,3), Tcw_mat.at<float>(2,3));
                 Eigen::Quaterniond Qcw(Rcw);
 
-                para_Pose[index_kf][0] = tcw(0);
-                para_Pose[index_kf][1] = tcw(1);
-                para_Pose[index_kf][2] = tcw(2);
-                para_Pose[index_kf][3] = Qcw.x();
-                para_Pose[index_kf][4] = Qcw.y();
-                para_Pose[index_kf][5] = Qcw.z();
-                para_Pose[index_kf][6] = Qcw.w();
+//                para_Pose[index_kf][0] = tcw(0);
+//                para_Pose[index_kf][1] = tcw(1);
+//                para_Pose[index_kf][2] = tcw(2);
+//                para_Pose[index_kf][3] = Qcw.x();
+//                para_Pose[index_kf][4] = Qcw.y();
+//                para_Pose[index_kf][5] = Qcw.z();
+//                para_Pose[index_kf][6] = Qcw.w();
+//
+//                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
+//                problem.AddParameterBlock(para_Pose[index_kf], 7, local_parameterization);
+                para_Pose_Q[index_kf][0] = Qcw.w();
+                para_Pose_Q[index_kf][1] = Qcw.x();
+                para_Pose_Q[index_kf][2] = Qcw.y();
+                para_Pose_Q[index_kf][3] = Qcw.z();
+                para_Pose_t[index_kf][0] = tcw(0);
+                para_Pose_t[index_kf][1] = tcw(1);
+                para_Pose_t[index_kf][2] = tcw(2);
 
-                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
-                problem.AddParameterBlock(para_Pose[index_kf], 7, local_parameterization);
+                ceres::LocalParameterization *local_parameterization = new ceres::QuaternionParameterization();//new PoseLocalParameterization();
+                problem.AddParameterBlock(para_Pose_Q[index_kf], 4, local_parameterization);
+                problem.AddParameterBlock(para_Pose_t[index_kf], 3);
+
 //            if( kf->mnId == 0 )
 //                problem.SetParameterBlockConstant( para_Pose[index_kf] );
                 if( kf->mnId < minId )
@@ -1407,7 +1450,8 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                     minId_index = index_kf;
                 }
             }
-            problem.SetParameterBlockConstant( para_Pose[minId_index] );
+            problem.SetParameterBlockConstant( para_Pose_Q[minId_index] );
+            problem.SetParameterBlockConstant( para_Pose_t[minId_index] );
             for( auto &kf:lFixedCameras )
             {
 //            num_fix_pos++;
@@ -1423,17 +1467,25 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                 Eigen::Matrix<double,3,1> tcw(Tcw_mat.at<float>(0,3), Tcw_mat.at<float>(1,3), Tcw_mat.at<float>(2,3));
                 Eigen::Quaterniond Qcw(Rcw);
 
-                para_Pose[index_kf][0] = tcw(0);
-                para_Pose[index_kf][1] = tcw(1);
-                para_Pose[index_kf][2] = tcw(2);
-                para_Pose[index_kf][3] = Qcw.x();
-                para_Pose[index_kf][4] = Qcw.y();
-                para_Pose[index_kf][5] = Qcw.z();
-                para_Pose[index_kf][6] = Qcw.w();
+//                para_Pose[index_kf][0] = tcw(0);
+//                para_Pose[index_kf][1] = tcw(1);
+//                para_Pose[index_kf][2] = tcw(2);
+//                para_Pose[index_kf][3] = Qcw.x();
+//                para_Pose[index_kf][4] = Qcw.y();
+//                para_Pose[index_kf][5] = Qcw.z();
+//                para_Pose[index_kf][6] = Qcw.w();
 
-                ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
-                problem.AddParameterBlock(para_Pose[index_kf], 7, local_parameterization);
-                problem.SetParameterBlockConstant( para_Pose[index_kf] );
+                para_Pose_Q[index_kf][0] = Qcw.w();
+                para_Pose_Q[index_kf][1] = Qcw.x();
+                para_Pose_Q[index_kf][2] = Qcw.y();
+                para_Pose_Q[index_kf][3] = Qcw.z();
+                para_Pose_t[index_kf][0] = tcw(0);
+                para_Pose_t[index_kf][1] = tcw(1);
+                para_Pose_t[index_kf][2] = tcw(2);
+
+                ceres::LocalParameterization *local_parameterization = new ceres::QuaternionParameterization();//new PoseLocalParameterization();
+                problem.AddParameterBlock(para_Pose_Q[index_kf], 4, local_parameterization);
+                problem.AddParameterBlock(para_Pose_t[index_kf], 3);
             }
 
 //        std::cout << "num_fix_pos = " << num_fix_pos << std::endl;
@@ -1468,10 +1520,23 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                             Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
 
 
+
+
                             size_t kf_index = kFid_id[ pKFi->mnId ];
                             auto loss_function = new ceres::HuberLoss( std::sqrt(5.991) );
-                            auto cost_function = new MonoProjection( obs_point );
-                            problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_point[index_point]);
+//                            auto cost_function = new MonoProjection( obs_point );
+//                            problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_point[index_point]);
+
+                            ceres::CostFunction* cost_function =
+                                    MonoProjectionAuto::Create(
+                                            kpUn.pt.x,
+                                            kpUn.pt.y,
+                                            fx, fy, cx, cy);
+                            problem.AddResidualBlock(cost_function,
+                                                     loss_function /* squared loss */,
+                                                     para_Pose_Q[kf_index],
+                                                     para_Pose_t[kf_index],
+                                                     para_Feature_point[index_point]);
                             factor_num++;
                             factor_point_num++;
                         }
@@ -1518,7 +1583,7 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                     size_t kf_index = kFid_id[ pKFi->mnId ];
                     auto loss_function = new ceres::HuberLoss( std::sqrt(5.991) );
                     auto cost_function = new MonoLineProjection( line_ob );
-                    problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_line[index_line]);
+//                    problem.AddResidualBlock(cost_function, loss_function, para_Pose[kf_index], para_Feature_line[index_line]);
 
                     factor_num ++;
                     factor_line_num ++;
@@ -1529,8 +1594,8 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
 //        std::cout << "factor_line_num = " << factor_line_num << std::endl;
 
             ceres::Solver::Options options;
-            options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;//SPARSE_SCHUR;
-            options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;  // LEVENBERG_MARQUARDT  DOGLEG
+            options.linear_solver_type = ceres::SPARSE_SCHUR;//SPARSE_SCHUR;
+            options.trust_region_strategy_type = ceres::DOGLEG;  // LEVENBERG_MARQUARDT  DOGLEG
             //    options.linear_solver_type = ceres::SPARSE_SCHUR; // SPARSE_NORMAL_CHOLESKY  or DENSE_SCHUR
 //            options.max_num_iterations = 20;
             options.max_solver_time_in_seconds = 0.3;
@@ -1564,10 +1629,14 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
             {
                 index_kf++;
                 Eigen::Matrix4d Tcw = Eigen::Matrix4d::Identity();
-                Tcw( 0, 3 ) = para_Pose[index_kf][0];
-                Tcw( 1, 3 ) = para_Pose[index_kf][1];
-                Tcw( 2, 3 ) = para_Pose[index_kf][2];
-                Tcw.block<3,3>(0,0) = Eigen::Quaterniond( para_Pose[index_kf][6], para_Pose[index_kf][3], para_Pose[index_kf][4], para_Pose[index_kf][5] ).toRotationMatrix();
+                Tcw( 0, 3 ) = para_Pose_t[index_kf][0];
+                Tcw( 1, 3 ) = para_Pose_t[index_kf][1];
+                Tcw( 2, 3 ) = para_Pose_t[index_kf][2];
+                Tcw.block<3,3>(0,0) = Eigen::Quaterniond(
+                        para_Pose_Q[index_kf][0],
+                        para_Pose_Q[index_kf][1],
+                        para_Pose_Q[index_kf][2],
+                        para_Pose_Q[index_kf][3] ).toRotationMatrix();
                 pKFi->SetPose(Converter::toCvMat(Tcw));
             }
 
@@ -1611,6 +1680,8 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                         auto kpUn = pKFi->mvKeysUn[ observ.second ];
                         if(pKFi->mvuRight[observ.second]<0)
                         {
+                            const float &fx = pKFi->fx;
+                            const float &fy = pKFi->fy;
                             const float &cx = ORB_SLAM2::Frame::cx;
                             const float &cy = ORB_SLAM2::Frame::cy;
                             const float &invfx = ORB_SLAM2::Frame::invfx;
@@ -1618,7 +1689,12 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                             Eigen::Vector2d obs_point( (kpUn.pt.x - cx) * invfx, (kpUn.pt.y - cy) * invfy );
                             bool bad_point = false;
                             size_t kf_index = kFid_id[ pKFi->mnId ];
-                            Eigen::Vector2d error = MonoProjection::compute_error( para_Pose[kf_index], para_Feature_point[index_point], obs_point, bad_point );
+                            Eigen::Vector2d error = compute_error(
+                                    para_Pose_Q[kf_index],
+                                    para_Pose_t[kf_index],
+                                    para_Feature_point[index_point],
+                                    kpUn.pt.x, kpUn.pt.y,
+                                    fx, fy, cx, cy, bad_point );
                             double error_norm = error.norm();
                             if( error_norm > std::sqrt(5.991) || bad_point )
                             {
@@ -1664,13 +1740,13 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
 
                     size_t kf_index = kFid_id[ pKFi->mnId ];
                     bool bad_line = false;
-                    Eigen::Vector2d error = MonoLineProjection::compute_error( para_Pose[kf_index], para_Feature_line[index_line], line_ob, bad_line );
-                    double error_norm = error.norm();
-                    if( error_norm > std::sqrt(5.991) || bad_line )
-                    {
-                        vToErase_line.emplace_back(pKFi,lLocalMapLine);
-                        erase_line_factor_num++;
-                    }
+//                    Eigen::Vector2d error = MonoLineProjection::compute_error( para_Pose[kf_index], para_Feature_line[index_line], line_ob, bad_line );
+//                    double error_norm = error.norm();
+//                    if( error_norm > std::sqrt(5.991) || bad_line )
+//                    {
+//                        vToErase_line.emplace_back(pKFi,lLocalMapLine);
+//                        erase_line_factor_num++;
+//                    }
                 }
             }
             std::cout << "erase_line_factor_num = " << erase_line_factor_num << std::endl;
