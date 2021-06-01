@@ -66,17 +66,20 @@ void Viewer::Run()
     glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 
-    pangolin::View& d_video = pangolin::Display("imgVideo")
-            .SetAspect(752/(float)480);
+//    pangolin::View& d_video = pangolin::Display("imgVideo");
+//            .SetAspect(-mImageWidth/mImageHeight);
 
-    pangolin::CreateDisplay()
-            .SetBounds(0.0, 0.3, pangolin::Attach::Pix(180), 1.0)
-            .SetLayout(pangolin::LayoutEqual)
-            .AddDisplay(d_video);
+//    pangolin::View& d_video = pangolin::CreateDisplay()
+//            .SetBounds(0.0, .3, 0.0, 0.5, -mImageWidth/mImageHeight)
+//            .SetLayout(pangolin::LayoutEqual);
+//            .AddDisplay(d_video);
+
+//    pangolin::View& d_video = pangolin::Display("video")
+//            .SetBounds(0,0.3,0.2,.6);
+//            .SetLock(pangolin::LockLeft, pangolin::LockBottom);
 
 
-
-    pangolin::CreatePanel("menu").SetBounds(0.0,1.0,0.0,pangolin::Attach::Pix(175));
+    pangolin::CreatePanel("menu").SetBounds(0.0,1.0,0.0,0.2);
     pangolin::Var<bool> menuFollowCamera("menu.Follow Camera",true,true);
     pangolin::Var<bool> menuShowImg("menu.Show Image",true,true);
     pangolin::Var<bool> menuShowPoints("menu.Show Points",true,true);
@@ -103,8 +106,9 @@ void Viewer::Run()
     Twc.SetIdentity();
 
 //    cv::namedWindow("ORB-SLAM2: Current Frame");
-    pangolin::GlTexture imageTexture(752, 480, GL_RGB,false,0,GL_BGR,GL_UNSIGNED_BYTE);
-
+//    pangolin::GlTexture imageTexture(640, 480, GL_RGB,false,0,GL_BGR,GL_UNSIGNED_BYTE);
+//    std::cout << "mImageWidth = " << mImageWidth << std::endl;
+//    std::cout << "mImageHeight = " << mImageHeight << std::endl;
 
     bool bFollow = true;
     bool bLocalizationMode = false;
@@ -156,10 +160,15 @@ void Viewer::Run()
         if(menuShowImg)
         {
             cv::Mat im = mpFrameDrawer->DrawFrame();
-            imageTexture.Upload(im.data,GL_BGR,GL_UNSIGNED_BYTE);
-            d_video.Activate();
-            glColor3f(1.0,1.0,1.0);
-            imageTexture.RenderToViewportFlipY();
+//            cv::resize(im, im, cv::Size(640, 480));
+//            std::cout << "im.elemSize() = " << im.elemSize() << std::endl;
+//            std::cout << "im.size = " << im.size << std::endl;
+            cv::imshow("img", im);
+            cv::waitKey(1);
+//            imageTexture.Upload(im.data,GL_BGR,GL_UNSIGNED_BYTE);
+//            d_video.Activate();
+//            glColor3f(1.0,1.0,1.0);
+//            imageTexture.RenderToViewportFlipY();
         }
 
         pangolin::FinishFrame();

@@ -1247,8 +1247,6 @@ void Optimizer::LocalBundleAdjustmentCeres(KeyFrame *pKF, bool* pbStopFlag, Map*
 
 void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFlag, Map *pMap)
 {
-//    bool without_line = true;
-    //TODO xinli opti 2 times
     for( int it= 0; it< 1; ++it )
     {
         // Local KeyFrames: First Breath Search from Current Keyframe
@@ -1479,7 +1477,8 @@ void Optimizer::LocalBundleAdjustmentWithLineCeres(KeyFrame *pKF, bool *pbStopFl
                         }
                         else
                         {
-                            assert(1);
+                            std::cerr << "error" << std::endl;
+                            assert(0);
                         }
                     }
                 }
