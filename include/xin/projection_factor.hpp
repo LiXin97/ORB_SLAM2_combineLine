@@ -128,12 +128,13 @@ struct MonoProjectionAuto {
 class MonoProjection : public ceres::SizedCostFunction<2, 7, 3>
 {
 public:
-    MonoProjection(Eigen::Vector2d& obs);
+    MonoProjection(Eigen::Vector2d& obs, double invSigma2);
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const;
     void check(double **parameters);
     static Eigen::Vector2d compute_error( double const *parameters_pose, double const *parameters_point, const Eigen::Vector2d& obs, bool& bad_point );
     static Eigen::Matrix2d sqrt_info;
     Eigen::Vector2d point_obs_;
+    double invSigma2_;
 };
 
 class MonoLineProjection : public ceres::SizedCostFunction<2, 7, 4>

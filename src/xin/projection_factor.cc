@@ -9,7 +9,8 @@
 
 Eigen::Matrix2d MonoProjection::sqrt_info;
 
-MonoProjection::MonoProjection(Eigen::Vector2d& obs) :point_obs_(obs){}
+MonoProjection::MonoProjection(Eigen::Vector2d& obs, double invSigma2)
+:point_obs_(obs), invSigma2_(invSigma2){}
 
 Eigen::Vector2d MonoProjection::compute_error(const double *parameters_pose, const double *parameters_point, const Eigen::Vector2d &obs, bool& bad_point)
 {
@@ -36,7 +37,7 @@ bool MonoProjection::Evaluate(double const *const *parameters, double *residuals
     residual(0) = pts_camera(0)/pts_camera(2) - point_obs_(0);
     residual(1) = pts_camera(1)/pts_camera(2) - point_obs_(1);
 
-    residual = sqrt_info * residual;
+    residual = sqrt_info * invSigma2_ * residual;
 
     if (jacobians)
     {
@@ -44,7 +45,7 @@ bool MonoProjection::Evaluate(double const *const *parameters, double *residuals
         Eigen::Matrix<double, 2, 3> reduce(2, 3);
         reduce << 1. / pts_camera(2), 0, -pts_camera(0) / (pts_camera(2) * pts_camera(2)),
                 0, 1. / pts_camera(2), -pts_camera(1) / (pts_camera(2) * pts_camera(2));
-        reduce = sqrt_info * reduce;
+        reduce = sqrt_info * invSigma2_ * reduce;
 
         if (jacobians[0])
         {
